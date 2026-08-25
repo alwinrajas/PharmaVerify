@@ -239,6 +239,11 @@ npm run build       # production build
 npm run lint
 ```
 
+The frontend has no automated tests. It is covered by the type check, the
+production build, and the manual browser walkthrough in
+[docs/11](docs/11-TEST-CASES.md) §2 — executed in full on 2026-08-25 with every
+case passing. Repeat that walkthrough after any frontend change.
+
 ---
 
 ## Database

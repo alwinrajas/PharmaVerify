@@ -199,8 +199,8 @@ The Android application itself.
 | --- | --- | --- |
 | L-01 | Not executed against SQL Server | See D-01 |
 | L-02 | OneDrive not tested against a live tenant | See D-02 |
-| L-03 | No automated frontend tests | The frontend is covered by type-checking, a clean production build and manual walkthrough. The backend has 38 feature tests |
-| L-04 | The UI was not verified in a browser by an automated tool | No browser automation was available in the build environment. Verification was type-check plus production build; the manual walkthrough in `11-TEST-CASES.md` should be run before the demonstration |
+| L-03 | No automated frontend tests | The frontend is covered by type-checking, a clean production build and a manual browser walkthrough. A regression there would not be caught automatically, so the walkthrough should be repeated after frontend changes. The backend has 52 feature tests |
+| ~~L-04~~ | ~~The UI was not verified in a browser~~ | **Closed 2026-08-25.** No browser automation was available in the build environment, so the project team performed the manual walkthrough. All screens and the full end-to-end flow were exercised; no functional, UI, navigation or validation issues were found |
 | L-05 | Import is synchronous | A very large file ties up the request. Queueing it is straightforward if real files prove large |
 | L-06 | No email | Password reset is administrator-driven; there is no self-service reset |
 | L-07 | Single application language | English only |

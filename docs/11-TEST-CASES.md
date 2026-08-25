@@ -6,7 +6,10 @@ Two layers:
   52 tests, 248 assertions, all passing. They cover the rules most likely to
   regress: import replacement, HHT idempotency, variance calculation, immediate
   adjustment, stock take, RBAC and error shape.
-- **Manual** — the walkthrough below, performed before a demonstration.
+- **Manual** — the walkthrough below. **Executed in full on 2026-08-25 by the
+  project team: all screens and the complete end-to-end business flow passed,
+  with no functional, UI, navigation or validation issues found.** Repeat it
+  after any frontend change, since the frontend has no automated tests.
 
 Automated tests run on SQLite, which also confirms the schema and queries carry
 no engine-specific SQL — useful evidence for the SQL Server target.
@@ -73,6 +76,10 @@ php artisan test
 ---
 
 ## 2. Manual test cases
+
+**Execution record — 2026-08-25.** Performed by the project team against the
+seeded demonstration data. Every case below passed. No functional, UI,
+navigation or validation issues were found, and no defects were raised.
 
 ### TC-AUTH-001 — Valid login
 

@@ -17,8 +17,11 @@ reports → final output → OneDrive.
 
 - Backend: 52 feature tests, 248 assertions, all passing.
 - Frontend: type-checks clean, production build succeeds.
+- **Browser UI validation completed** by the project team on 2026-08-25 — all
+  screens and the full end-to-end flow exercised, no issues found.
 - Documentation: `README`, `PROJECT-STATUS` and `docs/01`–`16` complete.
-- Two items need the client before they can be closed — see the bottom of this page.
+- Every P0 item is closed. The three remaining items are external dependencies
+  that need the client — see the bottom of this page.
 
 ---
 
@@ -103,7 +106,7 @@ reports → final output → OneDrive.
 | Frontend type checking | Completed | P1 | Clean |
 | Frontend production build | Completed | P1 | Succeeds; ~830 KB, ~248 KB gzipped |
 | API integration walkthrough | Completed | P0 | Full flow exercised over HTTP against the running server |
-| Browser UI verification | Not Started | P0 | No browser automation was available here — run the manual walkthrough in docs/11 before the demonstration |
+| Browser UI verification | Completed | P0 | Manual walkthrough performed by the project team on 2026-08-25. All screens and the full end-to-end flow exercised; no functional, UI, navigation or validation issues found |
 | SQL Server verification | Blocked | P0 | Needs an instance and the PHP driver — D-01 |
 | Live OneDrive verification | Blocked | P1 | Needs the Azure app registration — D-02 |
 | Documentation | Completed | P1 | README, PROJECT-STATUS, docs/01–16 |
@@ -157,7 +160,7 @@ Detail in [docs/15-ASSUMPTIONS-DEPENDENCIES.md](docs/15-ASSUMPTIONS-DEPENDENCIES
 
 ## Next
 
-1. Run the manual walkthrough in [docs/11](docs/11-TEST-CASES.md) in a browser before the demonstration.
-2. Rehearse [docs/14](docs/14-DEMO-GUIDE.md) end to end.
-3. Point the application at SQL Server as soon as an instance is available (D-01).
-4. Switch OneDrive to the Graph driver once credentials arrive (D-02).
+1. Rehearse [docs/14](docs/14-DEMO-GUIDE.md) end to end before the client session.
+2. Point the application at SQL Server as soon as an instance is available (D-01).
+3. Switch OneDrive to the Graph driver once credentials arrive (D-02).
+4. Confirm the HHT payload and the report columns with the client (D-03, D-04).
