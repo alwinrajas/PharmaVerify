@@ -1,0 +1,163 @@
+# PROJECT STATUS — PharmaVerify
+
+**Project:** Pharmacy Stock Verification Web Application
+**Window:** 2 working days (accelerated delivery)
+**Version:** 0.1.0
+**Last updated:** 2026-08-25
+
+Statuses: `Not Started` | `In Progress` | `Completed` | `Blocked` | `Needs Clarification`
+
+---
+
+## Summary
+
+The complete business flow works end to end: master data → stock import →
+HHT submission → audit → verification → variance → adjustment / stock take →
+reports → final output → OneDrive.
+
+- Backend: 52 feature tests, 248 assertions, all passing.
+- Frontend: type-checks clean, production build succeeds.
+- Documentation: `README`, `PROJECT-STATUS` and `docs/01`–`16` complete.
+- Two items need the client before they can be closed — see the bottom of this page.
+
+---
+
+## Foundation
+
+| Module | Status | Priority | Notes |
+| --- | --- | --- | --- |
+| Project structure | Completed | P0 | `backend/` · `frontend/` · `docs/` · `database/` |
+| Laravel backend | Completed | P0 | Laravel 12, API only, Sanctum tokens |
+| React frontend | Completed | P0 | React 19 + TS + Vite + MUI 7 |
+| Database connection | Completed | P0 | Running on MySQL; SQL Server is the target — see D-01 |
+| Authentication | Completed | P0 | Login, logout, session restore, inactive-account guard |
+| RBAC | Completed | P1 | 33 permissions, 3 roles, enforced server side |
+| Shop scoping | Completed | P1 | `ScopesToUserShops` applied across every scoped model |
+| Premium UI shell | Completed | P0 | Sidebar, top bar, page header, reusable DataTable |
+| Design system | Completed | P1 | Single theme: colour, type, spacing, component defaults |
+| Error handling | Completed | P0 | Every exception translated into a readable message |
+
+## Master
+
+| Module | Status | Priority | Notes |
+| --- | --- | --- | --- |
+| Shops | Completed | P0 | CRUD, activate/deactivate, search, filter, sort |
+| Items | Completed | P0 | CRUD, activate/deactivate, search, filter, sort |
+| Devices | Completed | P0 | Unique per shop; underpins submission identity |
+| Item Stock Import | Completed | P0 | Excel, flexible headers, row validation, **atomic replace** |
+| Import error reporting | Completed | P0 | Row, column, value and reason per rejection |
+| Item Stock | Completed | P0 | All filters, expiry highlighting, summary figures |
+
+## Verification flow
+
+| Module | Status | Priority | Notes |
+| --- | --- | --- | --- |
+| HHT Submission API | Completed | P0 | Documented contract, two-layer idempotency |
+| HHT Simulator | Completed | P0 | Same endpoint as a real device; demonstrates duplicates |
+| Stock Audit list | Completed | P0 | Shop, device, audit number, status and date filters |
+| Stock Audit detail | Completed | P0 | Header, summary strip, line table, inline actions |
+| Stock Verification | Completed | P0 | Worklist plus permission-gated line editing |
+| Verification audit trail | Completed | P1 | User, time, field, old value, new value |
+| Variance | Completed | P0 | Direction filters, summary, export |
+| Stock Adjustment | Completed | P0 | **Immediate posting, no approval step** |
+| Adjustment history | Completed | P0 | Before and after quantities retained |
+| Batch adjustment | Completed | P2 | One refusal does not discard the rest |
+| Stock Take | Completed | P0 | **Item master never touched**; candidates surfaced |
+
+## Output
+
+| Module | Status | Priority | Notes |
+| --- | --- | --- | --- |
+| Report engine | Completed | P0 | One definition drives screen, Excel and PDF |
+| Variance Report | Completed | P0 | |
+| Audit No. Based Report | Completed | P0 | Always shows shop and device context |
+| Individual Shop Based Report | Completed | P0 | |
+| Overall Stock Report | Completed | P0 | |
+| User Log Report | Completed | P1 | |
+| Stock Adjustment Report | Completed | P0 | |
+| Detailed Report | Completed | P1 | |
+| Variance Summary Report | Completed | P1 | |
+| Stock Occurrence Report | Completed | P1 | |
+| Excel export | Completed | P1 | Styled, auto-filtered, filters printed in the header |
+| PDF export | Completed | P1 | Masthead, colour-coded variance, page numbers |
+| Final Output | Completed | P0 | Workbook per audit, generated on demand |
+| OneDrive share | Completed | P1 | **Explicit click only**; progress, failure, retry, history |
+| OneDrive Graph driver | Completed | P1 | Written in full; untested against a live tenant — see D-02 |
+
+## Administration
+
+| Module | Status | Priority | Notes |
+| --- | --- | --- | --- |
+| User Management | Completed | P1 | Roles, shop assignment, reset, activate/deactivate |
+| Last-administrator guard | Completed | P1 | Prevents locking the system out |
+| Settings | Completed | P1 | Application settings only; no secrets exposed |
+| Activity Log | Completed | P1 | Filterable audit trail |
+| Dashboard | Completed | P0 | Cards, variance breakdown, recent activity, quick actions |
+
+## Quality
+
+| Module | Status | Priority | Notes |
+| --- | --- | --- | --- |
+| Demo seed data | Completed | P0 | 3 shops · 22 products · 9 devices · 14 audits · 107 counted lines |
+| Backend feature tests | Completed | P1 | 52 tests, 248 assertions, all passing |
+| Frontend type checking | Completed | P1 | Clean |
+| Frontend production build | Completed | P1 | Succeeds; ~830 KB, ~248 KB gzipped |
+| API integration walkthrough | Completed | P0 | Full flow exercised over HTTP against the running server |
+| Browser UI verification | Not Started | P0 | No browser automation was available here — run the manual walkthrough in docs/11 before the demonstration |
+| SQL Server verification | Blocked | P0 | Needs an instance and the PHP driver — D-01 |
+| Live OneDrive verification | Blocked | P1 | Needs the Azure app registration — D-02 |
+| Documentation | Completed | P1 | README, PROJECT-STATUS, docs/01–16 |
+
+---
+
+## Verified behaviour
+
+Each confirmed by an automated test and by the API walkthrough:
+
+| Rule | Evidence |
+| --- | --- |
+| Import replaces rather than appends | `StockImportTest` — previous rows gone, `replaced_records` correct |
+| A failed import changes nothing | `StockImportTest` — stock intact after a fatal error |
+| Another shop's stock is untouched | `StockImportTest` |
+| A retried submission creates no duplicate | `HhtSubmissionTest` — same audit id returned |
+| One audit number, several devices | `HhtSubmissionTest` — two separate audits |
+| Variance = physical − system | `StockAdjustmentTest`, `VerificationAndReportTest` |
+| Adjustment posts immediately | `StockAdjustmentTest` — stock changed, no approval state |
+| A line cannot be adjusted twice | `StockAdjustmentTest` |
+| Stock take leaves the item master alone | `StockAdjustmentTest` |
+| A Shop User is scoped and refused server side | `AuthAndAccessTest` — 403, not a filtered view |
+| Nothing uploads before the Share click | `AuthAndAccessTest` |
+| No stack traces reach the user | `AuthAndAccessTest` |
+| All nine reports run and export | `VerificationAndReportTest` — valid XLSX and PDF |
+| Every status value fits its column | `SchemaFitsStatusValuesTest` — 14 columns checked against their migrations |
+
+### Defect found and fixed during verification
+
+`stock_imports.status` was declared as 20 characters, but the application writes
+`completed_with_errors` — 21. SQLite accepts an over-long string, so the whole
+test suite passed while MySQL returned a 500 on any import containing invalid
+rows. Found by importing the sample file with deliberate errors against MySQL.
+The column is now 40 characters, and `SchemaFitsStatusValuesTest` guards all 14
+status columns against a repeat.
+
+---
+
+## Open with the client
+
+| # | Item | Blocks | Effort once resolved |
+| --- | --- | --- | --- |
+| D-01 | A reachable SQL Server instance and the PHP `pdo_sqlsrv` driver | Verification against the target database | Half a day |
+| D-02 | Azure app registration for OneDrive | A live upload test | One environment change |
+| D-03 | The real HHT payload specification | Confirming our contract | Half a day if a mapping is needed |
+| D-04 | Confirmation of report columns | Nothing — cheap to change | An hour per report |
+
+Detail in [docs/15-ASSUMPTIONS-DEPENDENCIES.md](docs/15-ASSUMPTIONS-DEPENDENCIES.md).
+
+---
+
+## Next
+
+1. Run the manual walkthrough in [docs/11](docs/11-TEST-CASES.md) in a browser before the demonstration.
+2. Rehearse [docs/14](docs/14-DEMO-GUIDE.md) end to end.
+3. Point the application at SQL Server as soon as an instance is available (D-01).
+4. Switch OneDrive to the Graph driver once credentials arrive (D-02).

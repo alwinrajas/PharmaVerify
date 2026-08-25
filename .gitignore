@@ -1,0 +1,35 @@
+# Dependencies
+/backend/vendor/
+/frontend/node_modules/
+node_modules/
+
+# Environment
+/backend/.env
+/backend/.env.backup
+/frontend/.env
+/frontend/.env.local
+
+# Build output
+/frontend/dist/
+/backend/public/build/
+/backend/public/hot
+
+# Laravel
+/backend/storage/*.key
+/backend/storage/framework/cache/data/*
+/backend/storage/framework/sessions/*
+/backend/storage/framework/views/*
+/backend/storage/logs/*
+/backend/storage/app/imports/*
+/backend/storage/app/final-output/*
+/backend/storage/app/onedrive-demo/*
+/backend/bootstrap/cache/*.php
+/backend/.phpunit.result.cache
+/backend/.phpunit.cache
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+*.log
