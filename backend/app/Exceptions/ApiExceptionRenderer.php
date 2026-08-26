@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -52,6 +53,11 @@ class ApiExceptionRenderer
 
             $e instanceof BusinessRuleException => self::respond($e->getMessage(), $e->getStatusCode()),
 
+            // Must precede the HttpExceptionInterface arm below: a throttled
+            // request is an HTTP exception, and left to that arm it would
+            // return Laravel's own wording and lose its Retry-After header.
+            $e instanceof ThrottleRequestsException => self::throttled($e),
+
             $e instanceof QueryException => self::logged(
                 $e,
                 'The operation could not be completed because of a database error. Please try again or contact your administrator.',
@@ -69,6 +75,33 @@ class ApiExceptionRenderer
                 500
             ),
         };
+    }
+
+    /**
+     * A throttled request, in the application's own envelope.
+     *
+     * The reply says only that the caller is going too fast and when to try
+     * again. It never says which limit was reached, nor — on a sign-in attempt
+     * — whether the account exists, so it cannot be used to enumerate accounts.
+     */
+    private static function throttled(ThrottleRequestsException $e): JsonResponse
+    {
+        $headers = $e->getHeaders();
+        $retryAfter = (int) ($headers['Retry-After'] ?? 60);
+
+        $response = self::respond(
+            'Too many requests. Please wait a moment and try again.',
+            429,
+            ['retry_after_seconds' => $retryAfter]
+        );
+
+        // The standard rate-limit headers are kept so a client can back off
+        // sensibly. They describe the limit, never the application.
+        foreach ($headers as $name => $value) {
+            $response->headers->set($name, $value);
+        }
+
+        return $response;
     }
 
     private static function logged(Throwable $e, string $message, int $status): JsonResponse

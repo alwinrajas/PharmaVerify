@@ -30,7 +30,9 @@ use Illuminate\Support\Facades\Route;
 | of what the frontend allowed them to click.
 */
 
-Route::post('auth/login', [AuthController::class, 'login'])->name('auth.login');
+Route::post('auth/login', [AuthController::class, 'login'])
+    ->middleware('throttle:login')
+    ->name('auth.login');
 
 Route::middleware('auth:sanctum')->group(function () {
     // ---------------------------------------------------------------- Auth
@@ -52,7 +54,9 @@ Route::middleware('auth:sanctum')->group(function () {
     // ------------------------------------------------------- Stock import
     Route::get('stock-imports/template', [StockImportController::class, 'template']);
     Route::get('stock-imports/{stockImport}/errors', [StockImportController::class, 'errors']);
-    Route::apiResource('stock-imports', StockImportController::class)->only(['index', 'store', 'show']);
+    Route::apiResource('stock-imports', StockImportController::class)
+        ->only(['index', 'store', 'show'])
+        ->middlewareFor('store', 'throttle:stock-import');
 
     // --------------------------------------------------------- Item stock
     Route::apiResource('item-stocks', ItemStockController::class)->only(['index', 'show']);

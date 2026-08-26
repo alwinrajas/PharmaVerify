@@ -16,6 +16,11 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->append(HandleCors::class);
 
+        // Laravel does not rate limit the API group on its own. Without this
+        // every endpoint — sign-in included — accepts unlimited attempts.
+        // The limits themselves are defined in AppServiceProvider.
+        $middleware->throttleApi();
+
         $middleware->alias([
             'permission' => Spatie\Permission\Middleware\PermissionMiddleware::class,
             'role' => Spatie\Permission\Middleware\RoleMiddleware::class,
