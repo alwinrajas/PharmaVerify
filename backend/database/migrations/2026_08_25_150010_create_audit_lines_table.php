@@ -11,8 +11,8 @@ return new class extends Migration
         Schema::create('audit_lines', function (Blueprint $table) {
             $table->id();
             $table->foreignId('audit_id')->constrained('audits')->cascadeOnDelete();
-            $table->foreignId('shop_id')->constrained('shops')->cascadeOnDelete();
-            $table->foreignId('item_stock_id')->nullable()->constrained('item_stocks')->nullOnDelete();
+            $table->unsignedBigInteger('shop_id');
+            $table->unsignedBigInteger('item_stock_id')->nullable();
             $table->string('product_code', 60)->nullable();
             $table->string('barcode', 60)->nullable();
             $table->string('description', 300)->nullable();
@@ -27,7 +27,7 @@ return new class extends Migration
             $table->boolean('is_unknown_item')->default(false);
             $table->string('verification_status', 20)->default('pending');
             $table->string('adjustment_status', 20)->default('not_adjusted');
-            $table->foreignId('verified_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('verified_by')->nullable()->constrained('users');
             $table->timestamp('verified_at')->nullable();
             $table->timestamp('adjusted_at')->nullable();
             $table->string('remarks', 500)->nullable();

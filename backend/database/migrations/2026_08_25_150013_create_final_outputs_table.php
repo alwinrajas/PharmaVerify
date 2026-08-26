@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::create('final_outputs', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('shop_id')->constrained('shops')->cascadeOnDelete();
+            $table->unsignedBigInteger('shop_id');
             $table->foreignId('audit_id')->constrained('audits')->cascadeOnDelete();
             $table->string('file_name', 255);
             $table->string('file_path', 500)->nullable();
@@ -23,7 +23,7 @@ return new class extends Migration
             $table->unsignedInteger('upload_attempts')->default(0);
             $table->string('last_error', 500)->nullable();
             $table->timestamp('uploaded_at')->nullable();
-            $table->foreignId('generated_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('generated_by')->nullable()->constrained('users');
             $table->timestamp('generated_at')->nullable();
             $table->timestamps();
 

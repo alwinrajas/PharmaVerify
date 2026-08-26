@@ -18,8 +18,8 @@ return new class extends Migration
             $table->string('uom', 20)->default('EA');
             $table->decimal('price', 18, 4)->default(0);
             $table->string('status', 20)->default('active');
-            $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
-            $table->foreignId('updated_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('created_by')->nullable()->constrained('users');
+            $table->foreignId('updated_by')->nullable()->constrained('users');
             $table->timestamps();
 
             $table->index('barcode');

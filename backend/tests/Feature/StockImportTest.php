@@ -45,10 +45,10 @@ class StockImportTest extends TestCase
         $this->assertEquals(150, $stock->firstWhere('product_code', 'MED-1001')->system_qty);
 
         $import = StockImport::firstOrFail();
-        $this->assertSame(2, $import->total_records);
-        $this->assertSame(2, $import->success_records);
-        $this->assertSame(0, $import->failed_records);
-        $this->assertSame(1, $import->replaced_records);
+        $this->assertEquals(2, $import->total_records);
+        $this->assertEquals(2, $import->success_records);
+        $this->assertEquals(0, $import->failed_records);
+        $this->assertEquals(1, $import->replaced_records);
         $this->assertSame('completed', $import->status);
     }
 
@@ -99,9 +99,9 @@ class StockImportTest extends TestCase
 
         $import = StockImport::firstOrFail();
 
-        $this->assertSame(5, $import->total_records);
-        $this->assertSame(1, $import->success_records);
-        $this->assertSame(4, $import->failed_records);
+        $this->assertEquals(5, $import->total_records);
+        $this->assertEquals(1, $import->success_records);
+        $this->assertEquals(4, $import->failed_records);
         $this->assertSame('completed_with_errors', $import->status);
 
         $errors = $import->errors()->pluck('error_message');

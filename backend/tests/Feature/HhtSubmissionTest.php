@@ -37,11 +37,11 @@ class HhtSubmissionTest extends TestCase
 
         $audit = Audit::firstOrFail();
 
-        $this->assertSame($shop->id, $audit->shop_id);
-        $this->assertSame($device->id, $audit->device_id);
-        $this->assertSame(1, $audit->audit_number);
-        $this->assertSame(1, $audit->item_count);
-        $this->assertSame(1, $audit->variance_count);
+        $this->assertEquals($shop->id, $audit->shop_id);
+        $this->assertEquals($device->id, $audit->device_id);
+        $this->assertEquals(1, $audit->audit_number);
+        $this->assertEquals(1, $audit->item_count);
+        $this->assertEquals(1, $audit->variance_count);
 
         $line = AuditLine::firstOrFail();
 

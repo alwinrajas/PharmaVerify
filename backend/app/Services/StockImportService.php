@@ -360,7 +360,10 @@ class StockImportService
                 'description' => mb_substr($description, 0, 300),
                 'system_qty' => round((float) $rawQty, 3),
                 'uom' => $uom !== '' ? mb_substr($uom, 0, 20) : 'EA',
-                'price' => is_numeric($price) ? round((float) $price, 4) : 0,
+                // Always a float: in a multi-row insert every row must give a
+                // column the same PHP type, or SQL Server infers the parameter
+                // type from one row and rejects the others.
+                'price' => is_numeric($price) ? round((float) $price, 4) : 0.0,
                 'batch' => mb_substr($batch, 0, 60),
                 'expiry_date' => $expiry,
                 'shelf_location' => trim((string) $get('shelf_location')) ?: null,

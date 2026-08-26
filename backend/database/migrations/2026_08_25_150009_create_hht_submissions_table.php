@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::create('hht_submissions', function (Blueprint $table) {
             $table->id();
             $table->string('submission_uid', 80);
-            $table->foreignId('shop_id')->constrained('shops')->cascadeOnDelete();
+            $table->unsignedBigInteger('shop_id');
             $table->foreignId('device_id')->constrained('devices')->cascadeOnDelete();
             $table->unsignedInteger('audit_number');
             $table->date('audit_date');
@@ -21,7 +21,7 @@ return new class extends Migration
             $table->string('payload_hash', 64);
             $table->string('status', 25)->default('accepted');
             $table->string('message', 500)->nullable();
-            $table->foreignId('audit_id')->nullable()->constrained('audits')->nullOnDelete();
+            $table->unsignedBigInteger('audit_id')->nullable();
             $table->timestamp('received_at')->nullable();
             $table->timestamps();
 

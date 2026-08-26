@@ -93,9 +93,9 @@ alter table "role_has_permissions" add constraint "role_has_permissions_permissi
 
 create table "shops" ("id" bigint not null identity primary key, "shop_code" nvarchar(50) not null, "shop_name" nvarchar(200) not null, "address" nvarchar(500) null, "city" nvarchar(100) null, "contact_person" nvarchar(150) null, "contact_number" nvarchar(30) null, "status" nvarchar(20) not null default 'active', "created_by" bigint null, "updated_by" bigint null, "created_at" datetime null, "updated_at" datetime null);
 
-alter table "shops" add constraint "shops_created_by_foreign" foreign key ("created_by") references "users" ("id") on delete set null;
+alter table "shops" add constraint "shops_created_by_foreign" foreign key ("created_by") references "users" ("id");
 
-alter table "shops" add constraint "shops_updated_by_foreign" foreign key ("updated_by") references "users" ("id") on delete set null;
+alter table "shops" add constraint "shops_updated_by_foreign" foreign key ("updated_by") references "users" ("id");
 
 create index "shops_status_index" on "shops" ("status");
 
@@ -113,9 +113,9 @@ create unique index "shop_user_unique" on "shop_user" ("shop_id", "user_id");
 
 create table "items" ("id" bigint not null identity primary key, "product_code" nvarchar(60) not null, "barcode" nvarchar(60) null, "description" nvarchar(300) not null, "generic_name" nvarchar(200) null, "manufacturer" nvarchar(200) null, "uom" nvarchar(20) not null default 'EA', "price" decimal(18, 4) not null default '0', "status" nvarchar(20) not null default 'active', "created_by" bigint null, "updated_by" bigint null, "created_at" datetime null, "updated_at" datetime null);
 
-alter table "items" add constraint "items_created_by_foreign" foreign key ("created_by") references "users" ("id") on delete set null;
+alter table "items" add constraint "items_created_by_foreign" foreign key ("created_by") references "users" ("id");
 
-alter table "items" add constraint "items_updated_by_foreign" foreign key ("updated_by") references "users" ("id") on delete set null;
+alter table "items" add constraint "items_updated_by_foreign" foreign key ("updated_by") references "users" ("id");
 
 create index "items_barcode_index" on "items" ("barcode");
 
@@ -135,7 +135,7 @@ create table "stock_imports" ("id" bigint not null identity primary key, "shop_i
 
 alter table "stock_imports" add constraint "stock_imports_shop_id_foreign" foreign key ("shop_id") references "shops" ("id") on delete cascade;
 
-alter table "stock_imports" add constraint "stock_imports_imported_by_foreign" foreign key ("imported_by") references "users" ("id") on delete set null;
+alter table "stock_imports" add constraint "stock_imports_imported_by_foreign" foreign key ("imported_by") references "users" ("id");
 
 create index "stock_imports_shop_id_index" on "stock_imports" ("shop_id");
 
@@ -151,9 +151,7 @@ create table "item_stocks" ("id" bigint not null identity primary key, "shop_id"
 
 alter table "item_stocks" add constraint "item_stocks_shop_id_foreign" foreign key ("shop_id") references "shops" ("id") on delete cascade;
 
-alter table "item_stocks" add constraint "item_stocks_item_id_foreign" foreign key ("item_id") references "items" ("id") on delete set null;
-
-alter table "item_stocks" add constraint "item_stocks_stock_import_id_foreign" foreign key ("stock_import_id") references "stock_imports" ("id") on delete set null;
+alter table "item_stocks" add constraint "item_stocks_item_id_foreign" foreign key ("item_id") references "items" ("id");
 
 create unique index "item_stock_identity_unique" on "item_stocks" ("shop_id", "product_code", "batch");
 
@@ -165,9 +163,9 @@ create table "audits" ("id" bigint not null identity primary key, "shop_id" bigi
 
 alter table "audits" add constraint "audits_shop_id_foreign" foreign key ("shop_id") references "shops" ("id") on delete cascade;
 
-alter table "audits" add constraint "audits_device_id_foreign" foreign key ("device_id") references "devices" ("id") on delete cascade;
+alter table "audits" add constraint "audits_device_id_foreign" foreign key ("device_id") references "devices" ("id");
 
-alter table "audits" add constraint "audits_verified_by_foreign" foreign key ("verified_by") references "users" ("id") on delete set null;
+alter table "audits" add constraint "audits_verified_by_foreign" foreign key ("verified_by") references "users" ("id");
 
 create unique index "audit_identity_unique" on "audits" ("shop_id", "device_id", "audit_number");
 
@@ -179,11 +177,7 @@ create index "audits_audit_date_index" on "audits" ("audit_date");
 
 create table "hht_submissions" ("id" bigint not null identity primary key, "submission_uid" nvarchar(80) not null, "shop_id" bigint not null, "device_id" bigint not null, "audit_number" int not null, "audit_date" date not null, "hht_user" nvarchar(150) null, "app_version" nvarchar(30) null, "item_count" int not null default '0', "payload_hash" nvarchar(64) not null, "status" nvarchar(25) not null default 'accepted', "message" nvarchar(500) null, "audit_id" bigint null, "received_at" datetime null, "created_at" datetime null, "updated_at" datetime null);
 
-alter table "hht_submissions" add constraint "hht_submissions_shop_id_foreign" foreign key ("shop_id") references "shops" ("id") on delete cascade;
-
 alter table "hht_submissions" add constraint "hht_submissions_device_id_foreign" foreign key ("device_id") references "devices" ("id") on delete cascade;
-
-alter table "hht_submissions" add constraint "hht_submissions_audit_id_foreign" foreign key ("audit_id") references "audits" ("id") on delete set null;
 
 create unique index "hht_submission_identity_unique" on "hht_submissions" ("shop_id", "device_id", "audit_number", "submission_uid");
 
@@ -195,11 +189,7 @@ create table "audit_lines" ("id" bigint not null identity primary key, "audit_id
 
 alter table "audit_lines" add constraint "audit_lines_audit_id_foreign" foreign key ("audit_id") references "audits" ("id") on delete cascade;
 
-alter table "audit_lines" add constraint "audit_lines_shop_id_foreign" foreign key ("shop_id") references "shops" ("id") on delete cascade;
-
-alter table "audit_lines" add constraint "audit_lines_item_stock_id_foreign" foreign key ("item_stock_id") references "item_stocks" ("id") on delete set null;
-
-alter table "audit_lines" add constraint "audit_lines_verified_by_foreign" foreign key ("verified_by") references "users" ("id") on delete set null;
+alter table "audit_lines" add constraint "audit_lines_verified_by_foreign" foreign key ("verified_by") references "users" ("id");
 
 create index "audit_lines_audit_id_index" on "audit_lines" ("audit_id");
 
@@ -213,15 +203,9 @@ create index "audit_lines_adjustment_status_index" on "audit_lines" ("adjustment
 
 create table "stock_adjustments" ("id" bigint not null identity primary key, "audit_line_id" bigint null, "audit_id" bigint null, "shop_id" bigint not null, "item_stock_id" bigint null, "product_code" nvarchar(60) null, "barcode" nvarchar(60) null, "description" nvarchar(300) null, "batch" nvarchar(60) not null default '', "old_system_qty" decimal(18, 3) not null default '0', "physical_qty" decimal(18, 3) not null default '0', "variance_qty" decimal(18, 3) not null default '0', "new_system_qty" decimal(18, 3) not null default '0', "reason" nvarchar(500) null, "adjusted_by" bigint null, "adjusted_at" datetime null, "created_at" datetime null, "updated_at" datetime null);
 
-alter table "stock_adjustments" add constraint "stock_adjustments_audit_line_id_foreign" foreign key ("audit_line_id") references "audit_lines" ("id") on delete set null;
-
-alter table "stock_adjustments" add constraint "stock_adjustments_audit_id_foreign" foreign key ("audit_id") references "audits" ("id") on delete set null;
-
 alter table "stock_adjustments" add constraint "stock_adjustments_shop_id_foreign" foreign key ("shop_id") references "shops" ("id") on delete cascade;
 
-alter table "stock_adjustments" add constraint "stock_adjustments_item_stock_id_foreign" foreign key ("item_stock_id") references "item_stocks" ("id") on delete set null;
-
-alter table "stock_adjustments" add constraint "stock_adjustments_adjusted_by_foreign" foreign key ("adjusted_by") references "users" ("id") on delete set null;
+alter table "stock_adjustments" add constraint "stock_adjustments_adjusted_by_foreign" foreign key ("adjusted_by") references "users" ("id");
 
 create index "stock_adjustments_shop_id_index" on "stock_adjustments" ("shop_id");
 
@@ -233,11 +217,7 @@ create table "stock_takes" ("id" bigint not null identity primary key, "shop_id"
 
 alter table "stock_takes" add constraint "stock_takes_shop_id_foreign" foreign key ("shop_id") references "shops" ("id") on delete cascade;
 
-alter table "stock_takes" add constraint "stock_takes_audit_id_foreign" foreign key ("audit_id") references "audits" ("id") on delete set null;
-
-alter table "stock_takes" add constraint "stock_takes_audit_line_id_foreign" foreign key ("audit_line_id") references "audit_lines" ("id") on delete set null;
-
-alter table "stock_takes" add constraint "stock_takes_taken_by_foreign" foreign key ("taken_by") references "users" ("id") on delete set null;
+alter table "stock_takes" add constraint "stock_takes_taken_by_foreign" foreign key ("taken_by") references "users" ("id");
 
 create index "stock_takes_shop_id_index" on "stock_takes" ("shop_id");
 
@@ -247,11 +227,9 @@ create index "stock_takes_taken_at_index" on "stock_takes" ("taken_at");
 
 create table "final_outputs" ("id" bigint not null identity primary key, "shop_id" bigint not null, "audit_id" bigint not null, "file_name" nvarchar(255) not null, "file_path" nvarchar(500) null, "record_count" int not null default '0', "verification_status" nvarchar(25) not null default 'pending', "adjustment_status" nvarchar(25) not null default 'pending', "onedrive_status" nvarchar(25) not null default 'not_uploaded', "onedrive_item_id" nvarchar(200) null, "onedrive_url" nvarchar(1000) null, "upload_attempts" int not null default '0', "last_error" nvarchar(500) null, "uploaded_at" datetime null, "generated_by" bigint null, "generated_at" datetime null, "created_at" datetime null, "updated_at" datetime null);
 
-alter table "final_outputs" add constraint "final_outputs_shop_id_foreign" foreign key ("shop_id") references "shops" ("id") on delete cascade;
-
 alter table "final_outputs" add constraint "final_outputs_audit_id_foreign" foreign key ("audit_id") references "audits" ("id") on delete cascade;
 
-alter table "final_outputs" add constraint "final_outputs_generated_by_foreign" foreign key ("generated_by") references "users" ("id") on delete set null;
+alter table "final_outputs" add constraint "final_outputs_generated_by_foreign" foreign key ("generated_by") references "users" ("id");
 
 create index "final_outputs_audit_id_index" on "final_outputs" ("audit_id");
 

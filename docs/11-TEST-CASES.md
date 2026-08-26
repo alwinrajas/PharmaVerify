@@ -11,8 +11,14 @@ Two layers:
   with no functional, UI, navigation or validation issues found.** Repeat it
   after any frontend change, since the frontend has no automated tests.
 
-Automated tests run on SQLite, which also confirms the schema and queries carry
-no engine-specific SQL — useful evidence for the SQL Server target.
+Automated tests run on SQLite by default. The same 52 tests have also been run
+against **Microsoft SQL Server 2022** and **MySQL**, all passing on each — see
+`15-ASSUMPTIONS-DEPENDENCIES.md` D-01.
+
+To run them against SQL Server, point the `DB_*` variables at the instance
+(`backend/.env.sqlsrv.example` has the block) and run `php artisan test`. Three
+defects were found the first time this was done, none of which SQLite or MySQL
+could surface; they are recorded in `16-CHANGELOG.md` v0.1.1.
 
 SQLite does *not* enforce string lengths, so `SchemaFitsStatusValuesTest` reads
 each status column's declared length straight from its migration and checks that

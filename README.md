@@ -248,8 +248,9 @@ case passing. Repeat that walkthrough after any frontend change.
 
 ## Database
 
-**Target:** Microsoft SQL Server. **Development ran on MySQL**, because the build
-machine had neither a SQL Server instance nor the `pdo_sqlsrv` extension.
+**Target:** Microsoft SQL Server — and **verified against it**: migrations, the
+full demonstration seed and all 52 tests run on SQL Server 2022, producing the
+same data as MySQL. Day-to-day development runs on MySQL.
 
 The data layer uses Eloquent migrations and the query builder only — no raw SQL
 and no engine-specific types — so the same schema applies to both. A generated

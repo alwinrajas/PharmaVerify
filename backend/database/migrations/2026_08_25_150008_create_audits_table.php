@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::create('audits', function (Blueprint $table) {
             $table->id();
             $table->foreignId('shop_id')->constrained('shops')->cascadeOnDelete();
-            $table->foreignId('device_id')->constrained('devices')->cascadeOnDelete();
+            $table->foreignId('device_id')->constrained('devices');
             $table->unsignedInteger('audit_number');
             $table->date('audit_date');
             $table->string('hht_user', 150)->nullable();
@@ -19,7 +19,7 @@ return new class extends Migration
             $table->unsignedInteger('item_count')->default(0);
             $table->unsignedInteger('variance_count')->default(0);
             $table->string('status', 25)->default('submitted');
-            $table->foreignId('verified_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('verified_by')->nullable()->constrained('users');
             $table->timestamp('verified_at')->nullable();
             $table->timestamps();
 

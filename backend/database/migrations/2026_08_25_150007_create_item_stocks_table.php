@@ -11,8 +11,8 @@ return new class extends Migration
         Schema::create('item_stocks', function (Blueprint $table) {
             $table->id();
             $table->foreignId('shop_id')->constrained('shops')->cascadeOnDelete();
-            $table->foreignId('item_id')->nullable()->constrained('items')->nullOnDelete();
-            $table->foreignId('stock_import_id')->nullable()->constrained('stock_imports')->nullOnDelete();
+            $table->foreignId('item_id')->nullable()->constrained('items');
+            $table->unsignedBigInteger('stock_import_id')->nullable();
             $table->string('product_code', 60);
             $table->string('barcode', 60)->nullable();
             $table->string('description', 300);

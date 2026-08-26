@@ -11,8 +11,8 @@ return new class extends Migration
         Schema::create('stock_takes', function (Blueprint $table) {
             $table->id();
             $table->foreignId('shop_id')->constrained('shops')->cascadeOnDelete();
-            $table->foreignId('audit_id')->nullable()->constrained('audits')->nullOnDelete();
-            $table->foreignId('audit_line_id')->nullable()->constrained('audit_lines')->nullOnDelete();
+            $table->unsignedBigInteger('audit_id')->nullable();
+            $table->unsignedBigInteger('audit_line_id')->nullable();
             $table->string('barcode', 60)->nullable();
             $table->string('product_code', 60)->nullable();
             $table->string('description', 300);
@@ -23,7 +23,7 @@ return new class extends Migration
             $table->string('shelf_location', 100)->nullable();
             $table->string('status', 20)->default('recorded');
             $table->string('remarks', 500)->nullable();
-            $table->foreignId('taken_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('taken_by')->nullable()->constrained('users');
             $table->timestamp('taken_at')->nullable();
             $table->timestamps();
 

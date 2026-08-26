@@ -17,8 +17,8 @@ return new class extends Migration
             $table->string('contact_person', 150)->nullable();
             $table->string('contact_number', 30)->nullable();
             $table->string('status', 20)->default('active');
-            $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
-            $table->foreignId('updated_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('created_by')->nullable()->constrained('users');
+            $table->foreignId('updated_by')->nullable()->constrained('users');
             $table->timestamps();
 
             $table->index('status');

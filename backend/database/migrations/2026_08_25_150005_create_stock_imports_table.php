@@ -20,7 +20,7 @@ return new class extends Migration
             // Long enough for 'completed_with_errors' with room to spare.
             $table->string('status', 40)->default('pending');
             $table->string('failure_reason', 500)->nullable();
-            $table->foreignId('imported_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('imported_by')->nullable()->constrained('users');
             $table->timestamp('imported_at')->nullable();
             $table->timestamps();
 

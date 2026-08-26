@@ -148,7 +148,10 @@ class HhtSubmissionService
                 'physical_qty' => $physicalQty,
                 'variance_qty' => $variance,
                 'uom' => $item['uom'] ?? $stock?->uom ?? 'EA',
-                'price' => $stock?->price ?? 0,
+                // Cast explicitly: in a multi-row insert every row must give a
+                // column the same PHP type, or SQL Server infers the parameter
+                // type from one row and rejects the others.
+                'price' => (float) ($stock?->price ?? 0),
                 'batch' => (string) ($item['batch'] ?? $stock?->batch ?? ''),
                 'expiry_date' => $this->parseDate($item['expiry'] ?? $item['expiry_date'] ?? null)
                     ?? $stock?->expiry_date?->toDateString(),

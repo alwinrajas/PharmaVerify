@@ -42,7 +42,7 @@ class StockAdjustmentTest extends TestCase
         $this->assertEquals(95, $adjustment->physical_qty);
         $this->assertEquals(-5, $adjustment->variance_qty);
         $this->assertEquals(95, $adjustment->new_system_qty);
-        $this->assertSame($user->id, $adjustment->adjusted_by);
+        $this->assertEquals($user->id, $adjustment->adjusted_by);
         $this->assertNotNull($adjustment->adjusted_at);
         $this->assertSame('Physical count confirmed by supervisor', $adjustment->reason);
     }

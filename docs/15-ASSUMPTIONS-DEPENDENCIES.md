@@ -11,28 +11,34 @@ Status: `Open` — needs the client · `Decided` — our call, documented ·
 
 ## 1. Dependencies on the client
 
-### D-01 · Microsoft SQL Server access — **Open**
+### D-01 · Microsoft SQL Server access — **Resolved 2026-08-26**
 
-**Situation.** SQL Server is the target database. The build machine has neither a
+**Situation.** SQL Server is the target database. The build machine had neither a
 SQL Server instance nor the PHP `sqlsrv` / `pdo_sqlsrv` extensions, so the
-application was developed against MySQL.
+application was originally developed against MySQL.
 
-**What we did.** The data layer uses Eloquent migrations and the query builder
-only — no raw SQL, no MySQL-only functions, no engine-specific types. The
-automated test suite runs on SQLite, which is further evidence the schema and
-queries carry nothing engine-specific. `database/sql/schema-sqlserver.sql` is
-generated from the same migrations and contains real T-SQL, including all four
-identity constraints.
+**How it was closed.** SQL Server 2022 was run in a container and the application
+executed against it from a PHP 8.2 container carrying Microsoft ODBC Driver 18.
+Migrations, the full demonstration seed and all 52 feature tests were run against
+the real engine, producing the same data as MySQL (4 users, 3 shops, 14 audits,
+107 counted lines, 37 stock records).
 
-**Residual risk.** The application has not been *executed* against SQL Server.
-The likely areas to check first are date handling and the `nvarchar(max)` columns
-used for JSON.
+**Three genuine defects were found and fixed** — none of which any MySQL or
+SQLite run could have surfaced. See §4 of this document and `16-CHANGELOG.md`.
 
-**Needed.** A reachable SQL Server instance with credentials, and the driver
-installed per `12-DEPLOYMENT-GUIDE.md` §1. Then `php artisan migrate --force`,
-`php artisan test`, and one pass of the end-to-end walkthrough.
+**Still outstanding for the client's own environment.** The validation ran against
+SQL Server 2022 in a container. Before go-live the same steps should be repeated
+against the client's actual instance, since collation, an existing security
+policy or a non-default schema could still differ. That is a deployment
+verification, not a development risk: the application is now known to run on the
+engine.
 
-**Effort once available.** Half a day, including fixes.
+**Note on the developer machine.** The host PHP 8.2 build now carries the
+`sqlsrv` and `pdo_sqlsrv` extensions, but connecting from the host additionally
+needs Microsoft ODBC Driver 18, whose installer requires administrator rights
+that were not available. Per-user driver registration does not work: Windows
+reads ODBC *driver* registrations only from `HKLM`. Installing that driver with
+admin rights is the one remaining step for host-native SQL Server development.
 
 ### D-02 · OneDrive credentials — **Open**
 
@@ -114,6 +120,27 @@ accepted from a request.
 `audit_lines.system_qty` records what the system held **at the moment of the
 count**, rather than joining live to `item_stocks`. A later stock import
 therefore cannot rewrite the history of an earlier count.
+
+### A-15 · One delete path per table, restrict on history — **Decided 2026-08-26**
+
+SQL Server permits only one cascade or set-null path between two tables. Meeting
+that meant choosing, for each reference, whether it cascades, restricts, or drops
+its constraint. The result:
+
+- Deleting a shop still removes everything beneath it, by exactly one route each.
+- **A user who has history can no longer be deleted.** The application never
+  deletes users — it deactivates them — so nothing changes in practice, and it
+  strengthens the intent that history survives the person leaving.
+- **A device with audits, and a product still held as stock, can no longer be
+  deleted.** Both are sensible for an auditing system, but they are a change:
+  those endpoints will now return a foreign key error rather than succeeding.
+- Denormalised `shop_id` columns and the soft `item_stock_id` / `audit_id`
+  references keep their index but hold no constraint, so a little referential
+  integrity moves into the application.
+
+Full detail in `04-DATABASE-DESIGN.md` §3. **Worth confirming with the client**:
+if they expect to hard-delete a device or an item that has history, that now
+needs an explicit cleanup step rather than a cascade.
 
 ### A-04 · Stock identity is shop + product + batch — **Decided**
 
@@ -197,7 +224,7 @@ The Android application itself.
 
 | # | Limitation | Consequence |
 | --- | --- | --- |
-| L-01 | Not executed against SQL Server | See D-01 |
+| ~~L-01~~ | ~~Not executed against SQL Server~~ | **Closed 2026-08-26.** Migrations, the full seed and all 52 tests run against SQL Server 2022. Repeat against the client's own instance before go-live — see D-01 |
 | L-02 | OneDrive not tested against a live tenant | See D-02 |
 | L-03 | No automated frontend tests | The frontend is covered by type-checking, a clean production build and a manual browser walkthrough. A regression there would not be caught automatically, so the walkthrough should be repeated after frontend changes. The backend has 52 feature tests |
 | ~~L-04~~ | ~~The UI was not verified in a browser~~ | **Closed 2026-08-25.** No browser automation was available in the build environment, so the project team performed the manual walkthrough. All screens and the full end-to-end flow were exercised; no functional, UI, navigation or validation issues were found |

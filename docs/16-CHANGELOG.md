@@ -114,6 +114,27 @@ requirement.
 
 ---
 
+## v0.1.1 — 2026-08-26
+
+SQL Server validation (dependency D-01). The application was executed against a
+real SQL Server 2022 instance for the first time: migrations, the full
+demonstration seed and all 52 feature tests. **Three defects surfaced that no
+MySQL or SQLite run could have caught.**
+
+| Change | Module | Reason |
+| --- | --- | --- |
+| **Fixed:** foreign keys reworked so every table has exactly one delete path | Database | SQL Server rejects multiple cascade / set-null paths between two tables — *“may cause cycles or multiple cascade paths”*. The schema **could not be created at all** on the target engine. MySQL and SQLite accept it silently. See `04-DATABASE-DESIGN.md` §3 and `15` A-15 |
+| **Fixed:** `encrypt` and `trust_server_certificate` enabled in `config/database.php` | Config | Laravel ships both commented out, so the `DB_ENCRYPT` and `DB_TRUST_SERVER_CERTIFICATE` values documented in `.env.sqlsrv.example` and the deployment guide were never read. Anyone following the guide against an instance with a self-signed certificate — the default — would have been unable to connect |
+| **Fixed:** `price` cast to float in the two bulk inserts | HHT / Stock Import | A column given an int in one row and a decimal string in another makes the SQL Server driver infer the parameter type from one row and reject the rest: *“Conversion failed when converting the nvarchar value '27.4000' to data type int”*. Seeding and any HHT submission containing an unknown product failed. MySQL coerces silently |
+| Assertions on model columns relaxed from `assertSame` to `assertEquals` | Tests | SQL Server returns `bigint` as a string where MySQL returns an int. `assertSame` there asserts the driver's PHP type rather than application behaviour. Only the 16 affected assertions changed; `count()` and JSON assertions were left strict |
+| Documentation updated to match | Docs | `04` cascade behaviour rewritten, `15` D-01 and L-01 closed with A-15 added, `11`, `12`, `README` and `PROJECT-STATUS` brought in line |
+
+Verified after the changes: 52 tests pass on **SQL Server**, on **MySQL** and on
+**SQLite**; the MySQL API walkthrough and both sample stock imports still behave
+exactly as before.
+
+---
+
 ## Template for later entries
 
 ```

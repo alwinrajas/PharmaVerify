@@ -10,10 +10,10 @@ return new class extends Migration
     {
         Schema::create('stock_adjustments', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('audit_line_id')->nullable()->constrained('audit_lines')->nullOnDelete();
-            $table->foreignId('audit_id')->nullable()->constrained('audits')->nullOnDelete();
+            $table->unsignedBigInteger('audit_line_id')->nullable();
+            $table->unsignedBigInteger('audit_id')->nullable();
             $table->foreignId('shop_id')->constrained('shops')->cascadeOnDelete();
-            $table->foreignId('item_stock_id')->nullable()->constrained('item_stocks')->nullOnDelete();
+            $table->unsignedBigInteger('item_stock_id')->nullable();
             $table->string('product_code', 60)->nullable();
             $table->string('barcode', 60)->nullable();
             $table->string('description', 300)->nullable();
@@ -23,7 +23,7 @@ return new class extends Migration
             $table->decimal('variance_qty', 18, 3)->default(0);
             $table->decimal('new_system_qty', 18, 3)->default(0);
             $table->string('reason', 500)->nullable();
-            $table->foreignId('adjusted_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('adjusted_by')->nullable()->constrained('users');
             $table->timestamp('adjusted_at')->nullable();
             $table->timestamps();
 

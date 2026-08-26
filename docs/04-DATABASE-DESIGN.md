@@ -1,9 +1,12 @@
 # 04 — Database Design
 
-Target engine: **Microsoft SQL Server**. Development runs on MySQL; the data
-layer uses Eloquent migrations and the query builder only, with no
-engine-specific SQL, so the same schema applies to both. See
-`15-ASSUMPTIONS-DEPENDENCIES.md`.
+Target engine: **Microsoft SQL Server**. The data layer uses Eloquent migrations
+and the query builder only, with no engine-specific SQL, so one schema serves
+every engine.
+
+**Verified on SQL Server 2022 on 2026-08-26**: migrations, the full demonstration
+seed and all 52 feature tests run against a real instance, and produce the same
+data as MySQL. The suite also runs on MySQL and SQLite.
 
 A generated SQL Server script is kept at `database/sql/schema-sqlserver.sql`
 and can be regenerated with `php artisan pharmaverify:sqlsrv-schema`.
@@ -365,13 +368,53 @@ stored here.
 
 ## 3. Cascade Behaviour
 
-| Parent | Child | On delete |
+**SQL Server permits only one cascade or set-null path between any two tables.**
+It rejects a schema with more than one — `Introducing FOREIGN KEY constraint …
+may cause cycles or multiple cascade paths` — where MySQL and SQLite accept it
+silently. The delete rules below are therefore arranged so that every table is
+reachable from any ancestor by exactly one path.
+
+### Cascading deletes
+
+| Parent | Child | Path |
 | --- | --- | --- |
-| shops | devices, item_stocks, audits, audit_lines, stock_takes, final_outputs, shop_user | cascade |
-| devices | audits, hht_submissions | cascade |
-| audits | audit_lines, final_outputs | cascade |
-| stock_imports | stock_import_errors | cascade |
-| users | created_by / updated_by / verified_by / adjusted_by / taken_by / generated_by | set null — history survives the person leaving |
+| shops | shop_user, devices, stock_imports, item_stocks, audits, stock_takes, stock_adjustments | direct, one each |
+| devices | hht_submissions | the submission belongs to the device that produced it |
+| audits | audit_lines, final_outputs | the audit owns its lines and its closing file |
+| stock_imports | stock_import_errors | the error belongs to its import |
+| users | shop_user | removing a user removes their shop assignments |
+
+Deleting a shop therefore still removes everything beneath it:
+`shops → devices → hht_submissions` and `shops → audits → audit_lines /
+final_outputs`, with `item_stocks`, `stock_takes`, `stock_adjustments`,
+`stock_imports → stock_import_errors` and `shop_user` going directly.
+
+### Restricted references (NO ACTION)
+
+| Column | References | Effect |
+| --- | --- | --- |
+| created_by, updated_by, verified_by, imported_by, adjusted_by, taken_by, generated_by | users | A user who has history cannot be deleted. The application never deletes users — it deactivates them — so this is the intended outcome and it strengthens the guarantee that history survives the person leaving. |
+| audits.device_id | devices | A device with audits cannot be deleted. Its submissions still cascade from the device, and its audits cascade from the shop. |
+| item_stocks.item_id | items | A product still held as stock cannot be removed from the item master. |
+
+### Soft references (indexed column, no constraint)
+
+Some columns carry an id for lookup and scoping but deliberately hold no foreign
+key, because the row they point at is expected to disappear underneath them or
+because the constraint would introduce a second delete path:
+
+| Column | Why |
+| --- | --- |
+| audit_lines.shop_id, final_outputs.shop_id, hht_submissions.shop_id | Denormalised so shop scoping needs no join. The row is already removed through its audit or device. |
+| audit_lines.item_stock_id, stock_adjustments.item_stock_id | Stock is **replaced wholesale on every import**, so these ids go stale by design. The audit keeps its own `system_qty` snapshot, and `StockAdjustmentService` already refuses politely when the stock row is gone. |
+| item_stocks.stock_import_id | Records which import produced the row; imports are retained while the stock they created is replaced. |
+| stock_adjustments.audit_id / audit_line_id, stock_takes.audit_id / audit_line_id | The history outlives the audit it came from. |
+
+These columns keep their indexes, and the application always writes them from
+the parent it just resolved, so the values remain correct in normal operation.
+The trade is deliberate: a little referential integrity moves from the database
+into the application in exchange for a schema that is identical on SQL Server,
+MySQL and SQLite.
 
 ## 4. Indexing Rationale
 

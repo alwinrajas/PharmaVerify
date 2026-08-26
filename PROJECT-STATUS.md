@@ -2,8 +2,8 @@
 
 **Project:** Pharmacy Stock Verification Web Application
 **Window:** 2 working days (accelerated delivery)
-**Version:** 0.1.0
-**Last updated:** 2026-08-25
+**Version:** 0.1.1
+**Last updated:** 2026-08-26
 
 Statuses: `Not Started` | `In Progress` | `Completed` | `Blocked` | `Needs Clarification`
 
@@ -32,7 +32,7 @@ reports → final output → OneDrive.
 | Project structure | Completed | P0 | `backend/` · `frontend/` · `docs/` · `database/` |
 | Laravel backend | Completed | P0 | Laravel 12, API only, Sanctum tokens |
 | React frontend | Completed | P0 | React 19 + TS + Vite + MUI 7 |
-| Database connection | Completed | P0 | Running on MySQL; SQL Server is the target — see D-01 |
+| Database connection | Completed | P0 | Verified on SQL Server 2022, MySQL and SQLite from one schema |
 | Authentication | Completed | P0 | Login, logout, session restore, inactive-account guard |
 | RBAC | Completed | P1 | 33 permissions, 3 roles, enforced server side |
 | Shop scoping | Completed | P1 | `ScopesToUserShops` applied across every scoped model |
@@ -107,7 +107,7 @@ reports → final output → OneDrive.
 | Frontend production build | Completed | P1 | Succeeds; ~830 KB, ~248 KB gzipped |
 | API integration walkthrough | Completed | P0 | Full flow exercised over HTTP against the running server |
 | Browser UI verification | Completed | P0 | Manual walkthrough performed by the project team on 2026-08-25. All screens and the full end-to-end flow exercised; no functional, UI, navigation or validation issues found |
-| SQL Server verification | Blocked | P0 | Needs an instance and the PHP driver — D-01 |
+| SQL Server verification | Completed | P0 | Migrations, full seed and all 52 tests run against SQL Server 2022 on 2026-08-26. Three defects found and fixed. Repeat against the client instance before go-live |
 | Live OneDrive verification | Blocked | P1 | Needs the Azure app registration — D-02 |
 | Documentation | Completed | P1 | README, PROJECT-STATUS, docs/01–16 |
 
@@ -149,7 +149,6 @@ status columns against a repeat.
 
 | # | Item | Blocks | Effort once resolved |
 | --- | --- | --- | --- |
-| D-01 | A reachable SQL Server instance and the PHP `pdo_sqlsrv` driver | Verification against the target database | Half a day |
 | D-02 | Azure app registration for OneDrive | A live upload test | One environment change |
 | D-03 | The real HHT payload specification | Confirming our contract | Half a day if a mapping is needed |
 | D-04 | Confirmation of report columns | Nothing — cheap to change | An hour per report |
@@ -161,6 +160,6 @@ Detail in [docs/15-ASSUMPTIONS-DEPENDENCIES.md](docs/15-ASSUMPTIONS-DEPENDENCIES
 ## Next
 
 1. Rehearse [docs/14](docs/14-DEMO-GUIDE.md) end to end before the client session.
-2. Point the application at SQL Server as soon as an instance is available (D-01).
-3. Switch OneDrive to the Graph driver once credentials arrive (D-02).
-4. Confirm the HHT payload and the report columns with the client (D-03, D-04).
+2. Switch OneDrive to the Graph driver once credentials arrive (D-02).
+3. Confirm the HHT payload and the report columns with the client (D-03, D-04).
+4. Repeat the SQL Server run against the client instance before go-live, and confirm the delete-behaviour change in docs/15 A-15.

@@ -29,7 +29,7 @@ class VerificationAndReportTest extends TestCase
         $this->assertEquals(98, $line->physical_qty);
         $this->assertEquals(-2, $line->variance_qty, 'Variance is recomputed, never taken from the request.');
         $this->assertSame(AuditLine::VERIFICATION_VERIFIED, $line->verification_status);
-        $this->assertSame($user->id, $line->verified_by);
+        $this->assertEquals($user->id, $line->verified_by);
 
         $activity = Activity::where('log_name', 'verification')->latest('id')->firstOrFail();
         $changes = $activity->properties['changes'] ?? [];

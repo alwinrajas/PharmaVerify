@@ -163,7 +163,7 @@ class AuthAndAccessTest extends TestCase
 
         $output = FinalOutput::firstOrFail();
         $this->assertSame(FinalOutput::ONEDRIVE_NOT_UPLOADED, $output->onedrive_status);
-        $this->assertSame(0, $output->upload_attempts);
+        $this->assertEquals(0, $output->upload_attempts);
 
         // Only the explicit share action uploads.
         $share = $this->actingAs($user)->postJson("/api/final-outputs/{$output->id}/share-onedrive");
@@ -171,7 +171,7 @@ class AuthAndAccessTest extends TestCase
 
         $output = $output->fresh();
         $this->assertSame(FinalOutput::ONEDRIVE_UPLOADED, $output->onedrive_status);
-        $this->assertSame(1, $output->upload_attempts);
+        $this->assertEquals(1, $output->upload_attempts);
         $this->assertNotNull($output->uploaded_at);
 
         // Sharing twice is refused rather than silently repeated.
