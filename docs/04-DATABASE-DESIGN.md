@@ -5,8 +5,16 @@ and the query builder only, with no engine-specific SQL, so one schema serves
 every engine.
 
 **Verified on SQL Server 2022 on 2026-08-26**: migrations, the full demonstration
-seed and all 52 feature tests run against a real instance, and produce the same
-data as MySQL. The suite also runs on MySQL and SQLite.
+seed and all 52 core feature tests run against a real instance, and produce the
+same data as MySQL. The suite also runs on MySQL and SQLite.
+
+**Re-run on 2026-08-26 with the Stock Report module applied: 57 of 60 pass.**
+The three failures are core tests, all caused by one defect in the on-hold Stock
+Report migration — `shops.ax_location_id` carries a plain unique index on a
+nullable column, and SQL Server allows only one NULL in a unique index where
+MySQL and SQLite allow many. Any second shop without a warehouse code is
+rejected. The fix is a filtered index, but it touches an on-hold module and is
+awaiting approval. All 8 Stock Report tests pass on SQL Server.
 
 A generated SQL Server script is kept at `database/sql/schema-sqlserver.sql`
 and can be regenerated with `php artisan pharmaverify:sqlsrv-schema`.

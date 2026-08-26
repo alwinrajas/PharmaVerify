@@ -15,7 +15,8 @@ The complete business flow works end to end: master data → stock import →
 HHT submission → audit → verification → variance → adjustment / stock take →
 reports → final output → OneDrive.
 
-- Backend: 60 feature tests, 293 assertions, all passing (52 core + 8 Stock Report).
+- Backend: 60 feature tests, 293 assertions. All pass on SQLite and MySQL.
+  On SQL Server **57 of 60 pass** — see the Stock Report defect under Quality.
 - Frontend: type-checks clean, production build succeeds.
 - **Browser UI validation completed** by the project team on 2026-08-25 — all
   screens and the full end-to-end flow exercised, no issues found.
@@ -108,7 +109,8 @@ reports → final output → OneDrive.
 | Frontend production build | Completed | P1 | Succeeds; ~830 KB, ~248 KB gzipped |
 | API integration walkthrough | Completed | P0 | Full flow exercised over HTTP against the running server |
 | Browser UI verification | Completed | P0 | Manual walkthrough performed by the project team on 2026-08-25. All screens and the full end-to-end flow exercised; no functional, UI, navigation or validation issues found |
-| SQL Server verification | Completed | P0 | Migrations, full seed and all 52 core tests run against SQL Server 2022 on 2026-08-26. Three defects found and fixed. The 8 Stock Report tests were written afterwards — see Phase 2 note below. Repeat against the client instance before go-live |
+| SQL Server verification (core) | Completed | P0 | Migrations, full seed and all 52 core tests run against SQL Server 2022 on 2026-08-26. Three defects found and fixed |
+| SQL Server verification (with Stock Report) | **Blocked** | P0 | Re-run 2026-08-26: **57 of 60 pass**. Three core tests fail on one defect in the on-hold Stock Report migration — `shops.ax_location_id` has a plain unique index on a nullable column, and SQL Server allows only one NULL. All 8 Stock Report tests pass. Fix identified (filtered index) but **awaiting approval** because it touches an on-hold module — D-05 |
 | Live OneDrive verification | Blocked | P1 | Needs the Azure app registration — D-02 |
 | Documentation | Completed | P1 | README, PROJECT-STATUS, docs/01–16 |
 

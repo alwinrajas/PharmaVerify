@@ -11,9 +11,14 @@ Two layers:
   with no functional, UI, navigation or validation issues found.** Repeat it
   after any frontend change, since the frontend has no automated tests.
 
-Automated tests run on SQLite by default. The same 52 tests have also been run
-against **Microsoft SQL Server 2022** and **MySQL**, all passing on each — see
-`15-ASSUMPTIONS-DEPENDENCIES.md` D-01.
+Automated tests run on SQLite by default. The same 52 core tests have also been
+run against **Microsoft SQL Server 2022** and **MySQL**, all passing on each —
+see `15-ASSUMPTIONS-DEPENDENCIES.md` D-01.
+
+**Current count: 60 tests.** On SQLite and MySQL all 60 pass. On SQL Server
+**57 of 60 pass**; the three failures are a known defect in the on-hold Stock
+Report migration (a unique index on a nullable column, which SQL Server limits
+to a single NULL). See `04-DATABASE-DESIGN.md` and D-05 in PROJECT-STATUS.
 
 To run them against SQL Server, point the `DB_*` variables at the instance
 (`backend/.env.sqlsrv.example` has the block) and run `php artisan test`. Three
