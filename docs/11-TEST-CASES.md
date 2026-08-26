@@ -1,6 +1,14 @@
 # 11 — Test Cases
 
-Two layers:
+Three layers:
+
+- **Frontend automated** — `frontend/src/**/*.test.tsx`, run with `npm test`
+  from `frontend/`. 66 tests using **Vitest**, **Testing Library** and **MSW**.
+  They cover the shared machinery behind every screen (`DataTable`,
+  `useTableQuery`, `AuthContext`, route guards) and the three dialogs that carry
+  business rules (Adjust, Verify, Stock Take). Screens themselves are covered by
+  the manual walkthrough below.
+
 
 - **Automated** — `backend/tests/Feature`, run with `php artisan test`.
   52 tests, 248 assertions, all passing. They cover the rules most likely to

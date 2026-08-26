@@ -239,10 +239,20 @@ npm run build       # production build
 npm run lint
 ```
 
-The frontend has no automated tests. It is covered by the type check, the
-production build, and the manual browser walkthrough in
-[docs/11](docs/11-TEST-CASES.md) §2 — executed in full on 2026-08-25 with every
-case passing. Repeat that walkthrough after any frontend change.
+```bash
+cd frontend
+npm test            # Vitest, 66 tests
+```
+
+66 frontend tests cover the shared machinery every screen depends on —
+`DataTable`, `useTableQuery`, `AuthContext` and the route guards — and the three
+dialogs that carry business rules: Adjust, Verify and Stock Take. The API is
+mocked at the network boundary with MSW, so the components exercise the real
+axios client and the real error translation.
+
+Individual screens are not covered test by test; the manual walkthrough in
+[docs/11](docs/11-TEST-CASES.md) §2 remains the check for those, and should be
+repeated after a significant frontend change.
 
 ---
 

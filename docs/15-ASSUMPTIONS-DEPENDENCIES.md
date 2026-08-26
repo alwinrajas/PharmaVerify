@@ -226,7 +226,7 @@ The Android application itself.
 | --- | --- | --- |
 | ~~L-01~~ | ~~Not executed against SQL Server~~ | **Closed 2026-08-26.** Migrations, the full seed and all 52 tests run against SQL Server 2022. Repeat against the client's own instance before go-live — see D-01 |
 | L-02 | OneDrive not tested against a live tenant | See D-02 |
-| L-03 | No automated frontend tests | The frontend is covered by type-checking, a clean production build and a manual browser walkthrough. A regression there would not be caught automatically, so the walkthrough should be repeated after frontend changes. The backend has 52 feature tests |
+| ~~L-03~~ | ~~No automated frontend tests~~ | **Closed 2026-08-26.** 66 Vitest tests cover the shared machinery and the three business dialogs. Individual screens are still covered by the manual walkthrough, which should be repeated after a significant frontend change |
 | ~~L-04~~ | ~~The UI was not verified in a browser~~ | **Closed 2026-08-25.** No browser automation was available in the build environment, so the project team performed the manual walkthrough. All screens and the full end-to-end flow were exercised; no functional, UI, navigation or validation issues were found |
 | L-05 | Import is synchronous | A very large file ties up the request. Queueing it is straightforward if real files prove large |
 | L-06 | No email | Password reset is administrator-driven; there is no self-service reset |

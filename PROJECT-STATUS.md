@@ -15,7 +15,7 @@ The complete business flow works end to end: master data → stock import →
 HHT submission → audit → verification → variance → adjustment / stock take →
 reports → final output → OneDrive.
 
-- Backend: 60 feature tests, 293 assertions, **all passing on SQL Server 2022,
+- Backend: 70 feature tests, 369 assertions, **all passing on SQL Server 2022,
   MySQL and SQLite**.
 - Frontend: type-checks clean, production build succeeds.
 - **Browser UI validation completed** by the project team on 2026-08-25 — all
@@ -39,7 +39,7 @@ reports → final output → OneDrive.
 | Shop scoping | Completed | P1 | `ScopesToUserShops` applied across every scoped model |
 | Premium UI shell | Completed | P0 | Sidebar, top bar, page header, reusable DataTable |
 | Design system | Completed | P1 | Single theme: colour, type, spacing, component defaults |
-| Error handling | Completed | P0 | Every exception translated into a readable message |
+| Error handling | Completed | P0 | Every exception translated into a readable message, including 429 |
 
 ## Master
 
@@ -104,7 +104,10 @@ reports → final output → OneDrive.
 | Module | Status | Priority | Notes |
 | --- | --- | --- | --- |
 | Demo seed data | Completed | P0 | 3 shops · 22 products · 9 devices · 14 audits · 107 counted lines |
-| Backend feature tests | Completed | P1 | 60 tests, 293 assertions, all passing |
+| Backend feature tests | Completed | P1 | 70 tests, 369 assertions, all passing on all three engines |
+| API rate limiting | Completed | P0 | Login throttled per email+origin, authenticated traffic per user, stock import guarded. 429 uses the standard envelope. Verified live against the file cache store |
+| Documentation accuracy | Completed | P1 | docs/02, 03, 05, 13, 14 reconciled against the code on 2026-08-26 |
+| Frontend automated tests | Completed | P1 | 66 Vitest tests: DataTable, useTableQuery, AuthContext, route guards, and the Adjust, Verify and Stock Take dialogs. Closes limitation L-03 |
 | Frontend type checking | Completed | P1 | Clean |
 | Frontend production build | Completed | P1 | Succeeds; ~830 KB, ~248 KB gzipped |
 | API integration walkthrough | Completed | P0 | Full flow exercised over HTTP against the running server |
