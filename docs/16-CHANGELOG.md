@@ -135,6 +135,46 @@ exactly as before.
 
 ---
 
+## v0.2.0 — 2026-08-26
+
+The business **Stock Report** (`Stock report.xlsx`) becomes the official stock
+import. It is a Dynamics AX export of three sheets — about 152,000 rows — that
+have to be joined, and it covers every branch it was run for.
+
+**The previous importer could not process it at all.** It exhausted the 512 MB
+memory limit inside PhpSpreadsheet before reaching validation, because it loaded
+all three sheets *with styling* when it needed one sheet's data. Even given
+unlimited memory it would have rejected the file: none of the Dynamics column
+names matched its alias table, and it read a single sheet so could never have
+produced description, unit, price or barcode.
+
+| Change | Module | Reason |
+| --- | --- | --- |
+| `StockReportReader` — loads one sheet, only the needed columns, no styling, 25,000 rows at a time | Stock Import | Opening the file went from 67.5 s / 516 MB to 7.3 s / 62 MB. Peak for a whole import is now ~180 MB reading, ~270 MB overall, so it fits a default limit and stays bounded as reports grow |
+| `StockReportImportService` — joins the three sheets | Stock Import | `stock` gives quantities, `Item Master` the product details, `all batches` the barcodes |
+| Workbook validation before any processing | Stock Import | Requirement 6/7: sheet names first, then required columns per sheet |
+| Shops matched by warehouse code | Shops | New `shops.ax_location_id`. One upload updates every shop the report names; the shop picker became an optional filter |
+| Item Master synced from the report | Stock Import | Confirmed with the business — products the report introduces are created and known ones refreshed. Supersedes the earlier rule; recorded as BR-13 |
+| Upload limit raised to 100 MB, execution limit lifted for the endpoint | API | The reference file is 6.6 MB and takes ~107 s end to end |
+| Frontend: optional shop, multi-shop summary, honest processing message | Stock Import | The result now reports shops updated and products synced alongside the row counts |
+| 8 feature tests for the new workflow | Tests | Multi-shop import, replace-not-append, repeat import, unmapped warehouse, row validation, missing sheet, item sync, and that the flat file still needs a shop |
+
+**Two failure modes worth knowing**, both found while building this:
+
+- Join keys carry stray whitespace. Matching `ITEMID|INVENTBATCHID` without
+  trimming yields **no barcodes at all**, silently — it looks like a successful
+  import with every barcode blank.
+- `EXPDATE` is an Excel day serial, and reading without styling means it arrives
+  as a plain number. Detecting it by cell format, as the old importer did, stops
+  working the moment styling is skipped.
+
+Verified against the real file: 8,910 of 8,913 rows imported across two shops in
+~71 s; the three rejections are one genuine duplicate and two rows whose
+`EXPDATE` is `1`. A shop the report does not mention kept its stock untouched.
+The older flat single-sheet import still works and is still covered by its tests.
+
+---
+
 ## Template for later entries
 
 ```

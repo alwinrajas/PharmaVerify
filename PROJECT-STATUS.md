@@ -15,7 +15,7 @@ The complete business flow works end to end: master data → stock import →
 HHT submission → audit → verification → variance → adjustment / stock take →
 reports → final output → OneDrive.
 
-- Backend: 52 feature tests, 248 assertions, all passing.
+- Backend: 60 feature tests, 293 assertions, all passing (52 core + 8 Stock Report).
 - Frontend: type-checks clean, production build succeeds.
 - **Browser UI validation completed** by the project team on 2026-08-25 — all
   screens and the full end-to-end flow exercised, no issues found.
@@ -47,7 +47,8 @@ reports → final output → OneDrive.
 | Shops | Completed | P0 | CRUD, activate/deactivate, search, filter, sort |
 | Items | Completed | P0 | CRUD, activate/deactivate, search, filter, sort |
 | Devices | Completed | P0 | Unique per shop; underpins submission identity |
-| Item Stock Import | Completed | P0 | Excel, flexible headers, row validation, **atomic replace** |
+| Item Stock Import (flat file) | Completed | P0 | Excel, flexible headers, row validation, **atomic replace** |
+| **Stock Report Import** | **On Hold** | P0 | Built and tested against the real 152,000-row file (8,910 rows across 2 shops in ~71s). **Awaiting client confirmation** on the quantity column, warehouse-to-shop mapping, Item Master sync and price source — see docs/17 §6. No further changes until confirmed |
 | Import error reporting | Completed | P0 | Row, column, value and reason per rejection |
 | Item Stock | Completed | P0 | All filters, expiry highlighting, summary figures |
 
@@ -102,12 +103,12 @@ reports → final output → OneDrive.
 | Module | Status | Priority | Notes |
 | --- | --- | --- | --- |
 | Demo seed data | Completed | P0 | 3 shops · 22 products · 9 devices · 14 audits · 107 counted lines |
-| Backend feature tests | Completed | P1 | 52 tests, 248 assertions, all passing |
+| Backend feature tests | Completed | P1 | 60 tests, 293 assertions, all passing |
 | Frontend type checking | Completed | P1 | Clean |
 | Frontend production build | Completed | P1 | Succeeds; ~830 KB, ~248 KB gzipped |
 | API integration walkthrough | Completed | P0 | Full flow exercised over HTTP against the running server |
 | Browser UI verification | Completed | P0 | Manual walkthrough performed by the project team on 2026-08-25. All screens and the full end-to-end flow exercised; no functional, UI, navigation or validation issues found |
-| SQL Server verification | Completed | P0 | Migrations, full seed and all 52 tests run against SQL Server 2022 on 2026-08-26. Three defects found and fixed. Repeat against the client instance before go-live |
+| SQL Server verification | Completed | P0 | Migrations, full seed and all 52 core tests run against SQL Server 2022 on 2026-08-26. Three defects found and fixed. The 8 Stock Report tests were written afterwards — see Phase 2 note below. Repeat against the client instance before go-live |
 | Live OneDrive verification | Blocked | P1 | Needs the Azure app registration — D-02 |
 | Documentation | Completed | P1 | README, PROJECT-STATUS, docs/01–16 |
 
@@ -152,6 +153,7 @@ status columns against a repeat.
 | D-02 | Azure app registration for OneDrive | A live upload test | One environment change |
 | D-03 | The real HHT payload specification | Confirming our contract | Half a day if a mapping is needed |
 | D-04 | Confirmation of report columns | Nothing — cheap to change | An hour per report |
+| **D-05** | **Stock Report confirmation** | **The Stock Report module, currently on hold** | Nil if confirmed as built; see docs/17 §6 for the cost of each alternative |
 
 Detail in [docs/15-ASSUMPTIONS-DEPENDENCIES.md](docs/15-ASSUMPTIONS-DEPENDENCIES.md).
 
@@ -159,7 +161,8 @@ Detail in [docs/15-ASSUMPTIONS-DEPENDENCIES.md](docs/15-ASSUMPTIONS-DEPENDENCIES
 
 ## Next
 
-1. Rehearse [docs/14](docs/14-DEMO-GUIDE.md) end to end before the client session.
+1. Confirm the four Stock Report decisions with the client so the module can come off hold (D-05).
+2. Rehearse [docs/14](docs/14-DEMO-GUIDE.md) end to end before the client session.
 2. Switch OneDrive to the Graph driver once credentials arrive (D-02).
 3. Confirm the HHT payload and the report columns with the client (D-03, D-04).
 4. Repeat the SQL Server run against the client instance before go-live, and confirm the delete-behaviour change in docs/15 A-15.

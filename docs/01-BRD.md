@@ -59,7 +59,7 @@ User Management, Settings, Dashboard.
 
 | # | Rule |
 | --- | --- |
-| BR-01 | Importing a stock file for a shop **replaces** that shop's existing stock. It is never appended. The replacement is atomic — a failed import leaves the previous stock intact. |
+| BR-01 | Importing the Stock Report **replaces** the existing stock of every shop the report covers. It is never appended. The replacement is atomic — a failed import leaves the previous stock intact. Shops the report does not mention are untouched. |
 | BR-02 | The same product may exist in several shops. Stock identity is **Shop + Product + Batch**, never barcode alone. |
 | BR-03 | The HHT submission identity is **Shop ID + Device ID + Audit Number**. Audit Number alone is not unique — several devices in a shop can share an audit number, and each device advances its own audit sequence. |
 | BR-04 | The HHT holds all scans in local device storage. There is **no continuous synchronisation** — only one final submission after the count is complete. |
@@ -67,10 +67,12 @@ User Management, Settings, Dashboard.
 | BR-06 | `Variance = Physical Quantity − System Quantity`. |
 | BR-07 | Stock adjustment is posted **immediately** on save. There is **no approval workflow** and no supervisor approval step. |
 | BR-08 | Adjustment history is retained for every posted adjustment. |
-| BR-09 | Stock Take records physical stock that is absent from the stock file. It **must not** automatically create an Item Master record. |
+| BR-09 | Stock Take records physical stock that is absent from the stock file. It **must not** automatically create an Item Master record. (The Stock Report import *does* sync the item master — see BR-13 — but Stock Take never does.) |
 | BR-10 | Completed audits may be edited, but only by users holding the relevant permission, and every edit is written to the audit trail (user, date/time, record, field, old value, new value, action). |
 | BR-11 | The final output is uploaded to OneDrive **only** when the user explicitly clicks **Share to OneDrive**. Nothing uploads automatically. |
 | BR-12 | Authorisation is enforced on the backend. Frontend visibility rules are a convenience only. |
+| BR-13 | The Stock Report import creates products it introduces and refreshes those already known in the Item Master. Nothing is ever removed. Confirmed 2026-08-26; this supersedes the earlier rule that a stock import must not alter the Item Master. |
+| BR-14 | A shop is matched to the Stock Report by its warehouse code (`INVENTLOCATIONID`), held on the shop as its AX location. |
 
 ## 7. Data Requirements
 

@@ -16,6 +16,7 @@ class Shop extends Model
 
     protected $fillable = [
         'shop_code',
+        'ax_location_id',
         'shop_name',
         'address',
         'city',
@@ -29,7 +30,7 @@ class Shop extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['shop_code', 'shop_name', 'address', 'city', 'contact_person', 'contact_number', 'status'])
+            ->logOnly(['shop_code', 'ax_location_id', 'shop_name', 'address', 'city', 'contact_person', 'contact_number', 'status'])
             ->logOnlyDirty()
             ->useLogName('shop')
             ->dontSubmitEmptyLogs();

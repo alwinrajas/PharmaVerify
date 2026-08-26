@@ -32,6 +32,74 @@ import { formatDateTime, formatNumber } from '@/utils/format'
 import { PERMISSIONS } from '@/constants/permissions'
 import type { StockImport, StockImportError } from '@/types'
 
+/**
+ * The endpoint accepts two file shapes. A Stock Report covers every branch it
+ * names and returns one record per shop plus an overall summary; the older flat
+ * file covers one shop and returns a single record. Both are folded into the
+ * same shape so the summary panel does not care which arrived.
+ */
+interface StockReportSummary {
+  shops: number
+  total_rows: number
+  imported: number
+  failed: number
+  replaced: number
+  items_synced: number
+  barcodes_matched: number
+}
+
+type ImportResponse = {
+  message?: string
+  data: StockImport | StockImport[]
+  meta?: { summary?: StockReportSummary; format?: string }
+}
+
+interface ImportOutcome {
+  format: 'stock_report' | 'flat'
+  fileName: string
+  total: number
+  imported: number
+  failed: number
+  replaced: number
+  shops: number
+  itemsSynced: number
+  /** The record errors were recorded against, if any. */
+  primary: StockImport | null
+}
+
+function toOutcome(response: ImportResponse): ImportOutcome {
+  const records = Array.isArray(response.data) ? response.data : [response.data]
+  const summary = response.meta?.summary
+
+  if (response.meta?.format === 'stock_report' && summary) {
+    return {
+      format: 'stock_report',
+      fileName: records[0]?.file_name ?? 'Stock report.xlsx',
+      total: summary.total_rows,
+      imported: summary.imported,
+      failed: summary.failed,
+      replaced: summary.replaced,
+      shops: summary.shops,
+      itemsSynced: summary.items_synced,
+      primary: records.find((r) => r.failed_records > 0) ?? records[0] ?? null,
+    }
+  }
+
+  const single = records[0]
+
+  return {
+    format: 'flat',
+    fileName: single?.file_name ?? '',
+    total: single?.total_records ?? 0,
+    imported: single?.success_records ?? 0,
+    failed: single?.failed_records ?? 0,
+    replaced: single?.replaced_records ?? 0,
+    shops: 1,
+    itemsSynced: 0,
+    primary: single ?? null,
+  }
+}
+
 export function StockImportPage() {
   const { can } = useAuth()
   const queryClient = useQueryClient()
@@ -44,7 +112,7 @@ export function StockImportPage() {
   const [file, setFile] = useState<File | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [progress, setProgress] = useState(0)
-  const [result, setResult] = useState<StockImport | null>(null)
+  const [result, setResult] = useState<ImportOutcome | null>(null)
   const [selectedImport, setSelectedImport] = useState<StockImport | null>(null)
 
   const { data: template } = useQuery({
@@ -68,10 +136,10 @@ export function StockImportPage() {
   const importMutation = useMutation({
     mutationFn: async () => {
       const payload = new FormData()
-      payload.append('shop_id', shopId)
+      if (shopId) payload.append('shop_id', shopId)
       payload.append('file', file as File)
 
-      const response = await apiClient.post<{ data: StockImport; message?: string }>('/stock-imports', payload, {
+      const response = await apiClient.post<ImportResponse>('/stock-imports', payload, {
         headers: { 'Content-Type': 'multipart/form-data' },
         onUploadProgress: (event) => {
           if (event.total) setProgress(Math.round((event.loaded / event.total) * 100))
@@ -81,9 +149,10 @@ export function StockImportPage() {
       return response.data
     },
     onSuccess: (response) => {
-      setResult(response.data)
+      const outcome = toOutcome(response)
+      setResult(outcome)
       enqueueSnackbar(response.message ?? 'Stock import completed.', {
-        variant: response.data.failed_records > 0 ? 'warning' : 'success',
+        variant: outcome.failed > 0 ? 'warning' : 'success',
       })
 
       void queryClient.invalidateQueries({ queryKey: ['stock-imports'] })
@@ -197,7 +266,7 @@ export function StockImportPage() {
     <Box>
       <PageHeader
         title="Item Stock Import"
-        description="Load a shop's system stock from an Excel file. Importing replaces the stock the shop currently holds."
+        description="Load system stock from the business Stock Report. Importing replaces the stock of every shop the file covers."
         crumbs={[{ label: 'Master' }, { label: 'Item Stock Import' }]}
       />
 
@@ -208,21 +277,21 @@ export function StockImportPage() {
               Import stock file
             </Typography>
             <Typography variant="caption" sx={{ display: 'block', mb: 2.5 }}>
-              Supported formats: .xls and .xlsx, up to 20 MB.
+              Supported formats: .xls and .xlsx, up to 100 MB. A large Stock Report can take a minute or two to process.
             </Typography>
 
             <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', md: '300px 1fr auto' }, alignItems: 'start' }}>
               <TextField
                 select
-                label="Shop"
+                label="Shop (optional)"
                 value={shopId}
                 onChange={(event) => setShopId(event.target.value)}
                 size="small"
                 fullWidth
-                required
                 slotProps={{ select: { native: true } }}
+                helperText="A Stock Report names its own shops. Choose one only to import a single branch."
               >
-                <option value="">Select a shop…</option>
+                <option value="">All shops named in the file</option>
                 {(shops ?? []).map((shop) => (
                   <option key={shop.id} value={shop.id}>
                     {shop.label}
@@ -259,7 +328,7 @@ export function StockImportPage() {
 
               <Button
                 variant="contained"
-                disabled={!shopId || !file || importMutation.isPending}
+                disabled={!file || importMutation.isPending}
                 onClick={() => setConfirmOpen(true)}
                 sx={{ minWidth: 150 }}
               >
@@ -271,7 +340,9 @@ export function StockImportPage() {
               <Box sx={{ mt: 2.5 }}>
                 <LinearProgress variant={progress > 0 && progress < 100 ? 'determinate' : 'indeterminate'} value={progress} />
                 <Typography variant="caption" sx={{ mt: 0.75, display: 'block' }}>
-                  {progress < 100 ? `Uploading… ${progress}%` : 'Validating and replacing stock…'}
+                  {progress < 100
+                    ? `Uploading… ${progress}%`
+                    : 'Reading the workbook, validating rows and replacing stock. Large reports take a minute or two — please keep this tab open.'}
                 </Typography>
               </Box>
             ) : null}
@@ -304,23 +375,32 @@ export function StockImportPage() {
 
       {result ? (
         <Alert
-          severity={result.failed_records > 0 ? 'warning' : 'success'}
-          icon={result.failed_records > 0 ? <WarningAmberRoundedIcon /> : <CheckCircleRoundedIcon />}
+          severity={result.failed > 0 ? 'warning' : 'success'}
+          icon={result.failed > 0 ? <WarningAmberRoundedIcon /> : <CheckCircleRoundedIcon />}
           sx={{ mb: 3 }}
           action={
-            result.failed_records > 0 ? (
-              <Button color="inherit" size="small" onClick={() => setSelectedImport(result)}>
+            result.failed > 0 && result.primary ? (
+              <Button color="inherit" size="small" onClick={() => setSelectedImport(result.primary)}>
                 View errors
               </Button>
             ) : null
           }
         >
-          <AlertTitle>Import summary — {result.file_name}</AlertTitle>
+          <AlertTitle>
+            Import summary — {result.fileName}
+            {result.format === 'stock_report' ? ' (Stock Report)' : ''}
+          </AlertTitle>
           <Stack direction="row" spacing={3} sx={{ flexWrap: 'wrap', mt: 0.5 }}>
-            <SummaryFigure label="Total rows" value={result.total_records} />
-            <SummaryFigure label="Imported" value={result.success_records} tone="success" />
-            <SummaryFigure label="Failed" value={result.failed_records} tone={result.failed_records ? 'error' : undefined} />
-            <SummaryFigure label="Previous records replaced" value={result.replaced_records} />
+            <SummaryFigure label="Total rows" value={result.total} />
+            <SummaryFigure label="Imported" value={result.imported} tone="success" />
+            <SummaryFigure label="Failed" value={result.failed} tone={result.failed ? 'error' : undefined} />
+            <SummaryFigure label="Previous records replaced" value={result.replaced} />
+            {result.format === 'stock_report' ? (
+              <>
+                <SummaryFigure label="Shops updated" value={result.shops} />
+                <SummaryFigure label="Products synced" value={result.itemsSynced} />
+              </>
+            ) : null}
           </Stack>
         </Alert>
       ) : null}
@@ -373,8 +453,12 @@ export function StockImportPage() {
       {/* Confirm the replacement — this is destructive for the shop's stock. */}
       <ConfirmDialog
         open={confirmOpen}
-        title="Replace stock for this shop?"
-        message={`Importing this file will remove the stock ${selectedShop?.label ?? 'this shop'} currently holds and replace it with the contents of the file. This cannot be undone.`}
+        title={selectedShop ? 'Replace stock for this shop?' : 'Replace stock for every shop in the file?'}
+        message={
+          selectedShop
+            ? `Importing this file will remove the stock ${selectedShop.label} currently holds and replace it with the contents of the file. This cannot be undone.`
+            : 'Importing will remove the stock currently held by every shop the file covers and replace it with the contents of the file. Shops the file does not mention are left untouched. This cannot be undone.'
+        }
         confirmLabel="Import and replace"
         severity="warning"
         busy={importMutation.isPending}

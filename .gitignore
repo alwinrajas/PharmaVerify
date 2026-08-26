@@ -3,6 +3,9 @@
 /frontend/node_modules/
 node_modules/
 
+# local_docs
+local_docs/
+
 # Environment
 /backend/.env
 /backend/.env.backup
@@ -26,6 +29,10 @@ node_modules/
 /backend/bootstrap/cache/*.php
 /backend/.phpunit.result.cache
 /backend/.phpunit.cache
+
+# Real client data — never committed. The Stock Report is business stock
+# information; the tests generate their own fixtures instead.
+Stock report.xlsx
 
 # IDE / OS
 .idea/

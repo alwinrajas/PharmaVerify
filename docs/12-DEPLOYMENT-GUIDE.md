@@ -177,7 +177,7 @@ server {
 
     root /var/www/pharmaverify/frontend/dist;
     index index.html;
-    client_max_body_size 25M;          # stock files up to 20 MB
+    client_max_body_size 110M;         # Stock Report files up to 100 MB
 
     # Single-page application: unknown paths return index.html
     location / {
@@ -193,7 +193,7 @@ server {
         fastcgi_pass unix:/run/php/php8.2-fpm.sock;
         include fastcgi_params;
         fastcgi_param SCRIPT_FILENAME /var/www/pharmaverify/backend/public/index.php;
-        fastcgi_read_timeout 300;      # large imports and exports
+        fastcgi_read_timeout 600;      # a large Stock Report takes minutes
     }
 }
 
@@ -209,9 +209,11 @@ server {
 1. Site root → `frontend/dist`; enable URL Rewrite to serve `index.html` for
    unmatched paths.
 2. Application under `/api` → `backend/public` with the PHP FastCGI handler.
-3. Request Filtering → maximum allowed content length ≥ 26214400 (25 MB).
-4. `upload_max_filesize = 25M`, `post_max_size = 25M`,
-   `max_execution_time = 300` in `php.ini`.
+3. Request Filtering → maximum allowed content length ≥ 115343360 (110 MB).
+4. `upload_max_filesize = 100M`, `post_max_size = 100M`,
+   `max_execution_time = 600`, `memory_limit = 512M` in `php.ini`.
+   The Stock Report import lifts its own execution limit, but the web server's
+   own timeout still applies — see `17-STOCK-REPORT-IMPORT.md` §5.
 
 Serving the frontend and the API from one origin avoids CORS entirely. Split
 across origins, set `FRONTEND_URL` to the frontend origin — `config/cors.php`
@@ -291,6 +293,8 @@ Back up the database before every upgrade that includes migrations.
 | “could not find driver” | `pdo_sqlsrv` not enabled, or the wrong TS/NTS or architecture build |
 | Sign-in works, every other call is 401 | The `Authorization` header is being stripped by the web server |
 | Import fails on a large file | `upload_max_filesize`, `post_max_size` or the web server's request limit |
+| Import dies with "Allowed memory size exhausted" | `memory_limit` below 512M. The reader chunks, but the process still needs headroom |
+| Import returns 504 | The web server's read timeout is below the time a large Stock Report needs |
 | Export times out | Raise `fastcgi_read_timeout` and `max_execution_time`, or narrow the report's filters |
 | OneDrive: “has not been configured yet” | `ONEDRIVE_DRIVER=graph` without credentials, or `config:cache` not re-run after editing `.env` |
 | Blank page after deployment | The frontend build was not copied, or the SPA rewrite rule is missing |

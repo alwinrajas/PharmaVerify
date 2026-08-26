@@ -54,14 +54,17 @@
 
 | ID | Requirement | Priority | Acceptance Criteria | Status |
 | --- | --- | --- | --- | --- |
-| STOCK-001 | Import stock from Excel (XLS/XLSX) | P0 | A valid file for a shop is imported and summarised | Planned |
-| STOCK-002 | Replace existing stock | P0 | Previous stock for that shop is removed and replaced atomically, never appended | Planned |
-| STOCK-003 | Validate file and columns | P0 | Wrong extension or missing required columns is rejected before any write | Planned |
+| STOCK-001 | Import the business Stock Report (XLS/XLSX) | P0 | The three-sheet report is imported and summarised; see docs/17 | Implemented |
+| STOCK-002 | Replace existing stock | P0 | Previous stock for every shop the report covers is removed and replaced atomically, never appended; shops it does not mention are untouched | Implemented |
+| STOCK-003 | Validate workbook, sheets and columns | P0 | Wrong extension, a missing sheet or a missing column is rejected before any write | Implemented |
 | STOCK-004 | Validate rows | P0 | Empty values, invalid quantity, invalid date and duplicate rows are reported per row with a reason | Planned |
 | STOCK-005 | Import summary | P0 | Total, successful, failed, imported by, imported date and status are shown | Planned |
 | STOCK-006 | Failed import leaves stock intact | P0 | A fatal error rolls back; previous stock is still queryable | Planned |
 | STOCK-007 | Multi-shop stock | P0 | The same product in three shops produces three separate stock records | Planned |
-| STOCK-008 | Item Stock screen | P0 | Shop, product, barcode, batch, expiry and status filters with pagination and sorting | Planned |
+| STOCK-008 | Item Stock screen | P0 | Shop, product, barcode, batch, expiry and status filters with pagination and sorting | Implemented |
+| STOCK-009 | Handle a large Stock Report | P0 | ~152,000 rows import within the default memory limit using chunked reading and bulk writes | Implemented |
+| STOCK-010 | Sync the Item Master from the report | P0 | Products introduced by the report are created and known ones refreshed; none removed | Implemented |
+| STOCK-011 | Match shops by warehouse code | P0 | `INVENTLOCATIONID` resolves to a shop through its AX location; unmatched codes are reported per row | Implemented |
 
 ## HHT Submission (HHT)
 

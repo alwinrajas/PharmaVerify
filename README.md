@@ -285,7 +285,7 @@ php artisan pharmaverify:sample-stock --shop=PHM001
 
 | # | Rule |
 | --- | --- |
-| 1 | Importing a stock file **replaces** the shop's stock, atomically. A failed import leaves the previous stock untouched. |
+| 1 | Importing the Stock Report **replaces** the stock of every shop it covers, atomically. A failed import leaves the previous stock untouched. |
 | 2 | Stock identity is **shop + product + batch**. Barcode alone is never enough. |
 | 3 | Submission identity is **shop + device + audit number**. The audit number alone repeats across devices. |
 | 4 | The HHT sends **one final submission**. There is no continuous synchronisation. |
@@ -320,6 +320,7 @@ Each is covered by a feature test.
 | [14-DEMO-GUIDE](docs/14-DEMO-GUIDE.md) | A 12–15 minute client demonstration |
 | [15-ASSUMPTIONS-DEPENDENCIES](docs/15-ASSUMPTIONS-DEPENDENCIES.md) | What we assumed, what is outstanding |
 | [16-CHANGELOG](docs/16-CHANGELOG.md) | Version history |
+| [17-STOCK-REPORT-IMPORT](docs/17-STOCK-REPORT-IMPORT.md) | The official Stock Report file, how it is imported and how it performs |
 | [PROJECT-STATUS](PROJECT-STATUS.md) | Module-by-module status |
 
 ---
@@ -328,7 +329,6 @@ Each is covered by a feature test.
 
 | # | Item | Effect |
 | --- | --- | --- |
-| D-01 | A reachable SQL Server instance and the PHP driver | The application has not been executed against SQL Server |
 | D-02 | Azure app registration for OneDrive | The Graph driver is written but untested against a live tenant; the demonstration driver is active |
 | D-03 | The real HHT payload specification | Our contract is documented; a mapping would live in one service method |
 | D-04 | Confirmation of report columns | Chosen by us; changed by editing one definition |

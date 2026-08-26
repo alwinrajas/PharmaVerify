@@ -3,12 +3,15 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Api\Concerns\HandlesIndexQueries;
+use App\Exceptions\BusinessRuleException;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\StockImportErrorResource;
 use App\Http\Resources\StockImportResource;
 use App\Models\Shop;
 use App\Models\StockImport;
 use App\Services\StockImportService;
+use App\Services\StockReport\StockReportImportService;
+use App\Services\StockReport\StockReportReader;
 use App\Support\ApiResponse;
 use App\Support\Permissions;
 use Illuminate\Http\JsonResponse;
@@ -18,7 +21,11 @@ class StockImportController extends Controller
 {
     use HandlesIndexQueries;
 
-    public function __construct(private readonly StockImportService $service) {}
+    public function __construct(
+        private readonly StockImportService $service,
+        private readonly StockReportReader $reportReader,
+        private readonly StockReportImportService $reportImporter,
+    ) {}
 
     public function index(Request $request): JsonResponse
     {
@@ -41,23 +48,43 @@ class StockImportController extends Controller
     }
 
     /**
-     * Imports a stock file and replaces the shop's existing stock with it.
+     * Imports a stock file and replaces the existing stock with it.
+     *
+     * Two shapes are accepted: the business Stock Report, which carries every
+     * branch it was run for across three sheets, and the older flat single-sheet
+     * file for one shop. Which one it is decides how it is processed.
      */
     public function store(Request $request): JsonResponse
     {
         $request->user()->can(Permissions::STOCK_IMPORT) || abort(403);
 
         $validated = $request->validate([
-            'shop_id' => ['required', 'integer', 'exists:shops,id'],
-            'file' => ['required', 'file', 'mimes:xls,xlsx', 'max:20480'],
+            // A Stock Report names its own shops, so the picker is optional and
+            // acts as a filter when it is used.
+            'shop_id' => ['nullable', 'integer', 'exists:shops,id'],
+            'file' => ['required', 'file', 'mimes:xls,xlsx', 'max:102400'],
         ], [
             'file.mimes' => 'Only Excel files with an .xls or .xlsx extension can be imported.',
-            'file.max' => 'The stock file must not be larger than 20 MB.',
+            'file.max' => 'The stock file must not be larger than 100 MB.',
         ]);
 
-        $shop = Shop::findOrFail($validated['shop_id']);
+        $file = $request->file('file');
+        $shop = ! empty($validated['shop_id']) ? Shop::findOrFail($validated['shop_id']) : null;
 
-        $result = $this->service->import($request->file('file'), $shop, $request->user());
+        // A large report takes minutes of honest work rather than hanging.
+        set_time_limit(0);
+
+        if ($this->reportReader->looksLikeStockReport($file->getRealPath())) {
+            return $this->storeStockReport($request, $file, $shop);
+        }
+
+        if (! $shop) {
+            throw new BusinessRuleException(
+                'Choose the shop this file belongs to. A shop is only optional for the business Stock Report, which names its own branches.'
+            );
+        }
+
+        $result = $this->service->import($file, $shop, $request->user());
         $import = $result['import'];
 
         $message = $import->failed_records > 0
@@ -73,6 +100,36 @@ class StockImportController extends Controller
             );
 
         return ApiResponse::success(new StockImportResource($import), $message, [], 201);
+    }
+
+    /**
+     * Handles the business Stock Report, which may cover several shops at once.
+     */
+    private function storeStockReport(Request $request, $file, ?Shop $shop): JsonResponse
+    {
+        $result = $this->reportImporter->import($file, $request->user(), $shop);
+        $summary = $result['summary'];
+
+        $message = $summary['failed'] > 0
+            ? sprintf(
+                'Stock Report imported. %s row(s) across %d shop(s) imported, %s row(s) contain validation errors.',
+                number_format($summary['imported']),
+                $summary['shops'],
+                number_format($summary['failed'])
+            )
+            : sprintf(
+                'Stock Report imported successfully. %s row(s) across %d shop(s) imported and %s previous record(s) replaced.',
+                number_format($summary['imported']),
+                $summary['shops'],
+                number_format($summary['replaced'])
+            );
+
+        return ApiResponse::success(
+            StockImportResource::collection($result['imports']),
+            $message,
+            ['summary' => $summary, 'format' => 'stock_report'],
+            201
+        );
     }
 
     public function show(Request $request, StockImport $stockImport): JsonResponse
@@ -99,13 +156,17 @@ class StockImportController extends Controller
         );
     }
 
-    /** The column headings the importer understands, shown on the import screen. */
+    /** What the importer accepts, shown on the import screen. */
     public function template(): JsonResponse
     {
         return ApiResponse::success([
-            'required' => ['Product Code', 'Product Description', 'System Stock'],
-            'optional' => ['Shop', 'Barcode', 'UOM', 'Price', 'Batch', 'Expiry Date', 'Shelf Location'],
-            'note' => 'Importing a file replaces all existing stock for the selected shop.',
+            // The business Stock Report is the expected file.
+            'required' => ['stock', 'all batches', 'Item Master'],
+            'optional' => ['INVENTLOCATIONID', 'ITEMID', 'INVENTBATCHID', 'EXPDATE', 'LOWERQTY', 'ITEMBARCODE', 'ITEMNAME', 'INVUNIT', 'SALESPRICE'],
+            'note' => 'The business Stock Report is expected: three sheets named "stock", "all batches" and "Item Master". '
+                .'Importing replaces the stock of every shop the report covers. A shop is matched by its warehouse code '
+                .'(INVENTLOCATIONID). A flat single-sheet file for one shop is still accepted, with Product Code, '
+                .'Product Description and System Stock columns.',
         ]);
     }
 }
