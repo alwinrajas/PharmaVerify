@@ -15,8 +15,8 @@ The complete business flow works end to end: master data → stock import →
 HHT submission → audit → verification → variance → adjustment / stock take →
 reports → final output → OneDrive.
 
-- Backend: 60 feature tests, 293 assertions. All pass on SQLite and MySQL.
-  On SQL Server **57 of 60 pass** — see the Stock Report defect under Quality.
+- Backend: 60 feature tests, 293 assertions, **all passing on SQL Server 2022,
+  MySQL and SQLite**.
 - Frontend: type-checks clean, production build succeeds.
 - **Browser UI validation completed** by the project team on 2026-08-25 — all
   screens and the full end-to-end flow exercised, no issues found.
@@ -49,7 +49,7 @@ reports → final output → OneDrive.
 | Items | Completed | P0 | CRUD, activate/deactivate, search, filter, sort |
 | Devices | Completed | P0 | Unique per shop; underpins submission identity |
 | Item Stock Import (flat file) | Completed | P0 | Excel, flexible headers, row validation, **atomic replace** |
-| **Stock Report Import** | **On Hold** | P0 | Built and tested against the real 152,000-row file (8,910 rows across 2 shops in ~71s). **Awaiting client confirmation** on the quantity column, warehouse-to-shop mapping, Item Master sync and price source — see docs/17 §6. No further changes until confirmed |
+| **Stock Report Import** | **On Hold** | P0 | Built and tested against the real 152,000-row file (8,910 rows across 2 shops in ~71s); all 8 tests pass on all three engines. **Awaiting client confirmation** on the quantity column, warehouse-to-shop mapping, Item Master sync and price source — see docs/17 §6. No further changes until confirmed |
 | Import error reporting | Completed | P0 | Row, column, value and reason per rejection |
 | Item Stock | Completed | P0 | All filters, expiry highlighting, summary figures |
 
@@ -110,7 +110,7 @@ reports → final output → OneDrive.
 | API integration walkthrough | Completed | P0 | Full flow exercised over HTTP against the running server |
 | Browser UI verification | Completed | P0 | Manual walkthrough performed by the project team on 2026-08-25. All screens and the full end-to-end flow exercised; no functional, UI, navigation or validation issues found |
 | SQL Server verification (core) | Completed | P0 | Migrations, full seed and all 52 core tests run against SQL Server 2022 on 2026-08-26. Three defects found and fixed |
-| SQL Server verification (with Stock Report) | **Blocked** | P0 | Re-run 2026-08-26: **57 of 60 pass**. Three core tests fail on one defect in the on-hold Stock Report migration — `shops.ax_location_id` has a plain unique index on a nullable column, and SQL Server allows only one NULL. All 8 Stock Report tests pass. Fix identified (filtered index) but **awaiting approval** because it touches an on-hold module — D-05 |
+| SQL Server verification (with Stock Report) | Completed | P0 | Re-run 2026-08-26 after the filtered-index fix: **all 60 pass on SQL Server, MySQL and SQLite**, with `migrate:fresh` verified on each. The fix was a compatibility change only; no Stock Report business rule was altered |
 | Live OneDrive verification | Blocked | P1 | Needs the Azure app registration — D-02 |
 | Documentation | Completed | P1 | README, PROJECT-STATUS, docs/01–16 |
 

@@ -8,13 +8,17 @@ every engine.
 seed and all 52 core feature tests run against a real instance, and produce the
 same data as MySQL. The suite also runs on MySQL and SQLite.
 
-**Re-run on 2026-08-26 with the Stock Report module applied: 57 of 60 pass.**
-The three failures are core tests, all caused by one defect in the on-hold Stock
-Report migration — `shops.ax_location_id` carries a plain unique index on a
-nullable column, and SQL Server allows only one NULL in a unique index where
-MySQL and SQLite allow many. Any second shop without a warehouse code is
-rejected. The fix is a filtered index, but it touches an on-hold module and is
-awaiting approval. All 8 Stock Report tests pass on SQL Server.
+**Re-run on 2026-08-26 with the Stock Report module applied: all 60 pass on
+SQL Server, MySQL and SQLite.**
+
+One compatibility defect was found and fixed on the way: `shops.ax_location_id`
+carried a plain unique index on a nullable column. SQL Server and PostgreSQL
+treat NULLs as equal in a unique index and permit only one, so a second shop
+without a warehouse code was rejected; MySQL and SQLite permit many. The column
+now takes a **filtered unique index** (`WHERE ax_location_id IS NOT NULL`) on
+the engines that need one, and a plain unique index on those that do not. This
+is the same NULL-uniqueness hazard recorded as A-05 in
+`15-ASSUMPTIONS-DEPENDENCIES.md` for `item_stocks.batch`.
 
 A generated SQL Server script is kept at `database/sql/schema-sqlserver.sql`
 and can be regenerated with `php artisan pharmaverify:sqlsrv-schema`.
