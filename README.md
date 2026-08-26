@@ -66,7 +66,7 @@ pharmacy-stock-verification/
 │   │   └── Exceptions/      API error translation
 │   ├── database/            migrations · seeders
 │   ├── routes/api.php       Every endpoint
-│   └── tests/Feature/       52 feature tests
+│   └── tests/Feature/       70 feature tests
 │
 ├── frontend/                React SPA
 │   └── src/
@@ -78,7 +78,7 @@ pharmacy-stock-verification/
 │       ├── services/        API client, error translation, downloads
 │       └── routes/          Route table with permission guards
 │
-├── docs/                    01-BRD … 16-CHANGELOG
+├── docs/                    01-BRD … 17-STOCK-REPORT-IMPORT
 ├── database/
 │   ├── sql/                 Generated SQL Server schema
 │   └── sample-data/         Sample stock import files (valid and with errors)
@@ -220,7 +220,7 @@ cd backend
 php artisan test
 ```
 
-52 feature tests, 248 assertions, covering the rules most likely to regress:
+70 feature tests, 369 assertions, covering the rules most likely to regress:
 stock import replacement and its atomicity, HHT submission idempotency, variance
 calculation, immediate adjustment posting, stock take not touching the item
 master, RBAC and shop scoping, and the shape of error responses.
@@ -259,8 +259,8 @@ repeated after a significant frontend change.
 ## Database
 
 **Target:** Microsoft SQL Server — and **verified against it**: migrations, the
-full demonstration seed and all 52 tests run on SQL Server 2022, producing the
-same data as MySQL. Day-to-day development runs on MySQL.
+full demonstration seed and the whole test suite run on SQL Server 2022,
+producing the same data as MySQL. Day-to-day development runs on MySQL.
 
 The data layer uses Eloquent migrations and the query builder only — no raw SQL
 and no engine-specific types — so the same schema applies to both. A generated

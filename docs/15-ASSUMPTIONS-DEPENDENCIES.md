@@ -98,6 +98,29 @@ described every report in one place so a column is added by editing a definition
 Hosting, TLS certificates, backup schedule and network egress to Microsoft Graph
 are all environment decisions. `12-DEPLOYMENT-GUIDE.md` states what is required.
 
+### D-07 · Stock Report business decisions — **Open**
+
+**Situation.** The business Stock Report import is built, tested against the real
+152,000-row file and covered by 8 tests on all three engines, but **the module is
+ON HOLD**: four business decisions behind it are not yet confirmed.
+
+**Needed.**
+
+| # | Decision | Built as | Cost if changed |
+| --- | --- | --- | --- |
+| 1 | Which column is the system quantity | `LOWERQTY` | ~1 h to use `HIGHERQTY` or keep both — they differ on 2,392 of 8,913 rows |
+| 2 | How a warehouse maps to a shop | `shops.ax_location_id`, importing every shop the report names | ~2 h for a different model |
+| 3 | Whether the import may sync the Item Master | Yes — creates and refreshes, never deletes | ~2 h to revert to enrichment only |
+| 4 | Which price to carry | `SALESPRICE` from Item Master, `COSTPERINVUNIT` as fallback | ~30 min to switch to cost |
+
+Decisions 1 to 3 were confirmed with the business on 2026-08-26 and then placed
+back on hold pending final client sign-off. Decision 4 is our judgement and has
+not yet been put to the client.
+
+**Effort if all four are confirmed as built.** Nil — the module is finished.
+
+Full detail in `17-STOCK-REPORT-IMPORT.md` §6.
+
 ---
 
 ## 2. Decisions we made

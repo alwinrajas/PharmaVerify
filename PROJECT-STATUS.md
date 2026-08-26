@@ -2,10 +2,10 @@
 
 **Project:** Pharmacy Stock Verification Web Application
 **Window:** 2 working days (accelerated delivery)
-**Version:** 0.1.1
+**Version:** 0.2.1
 **Last updated:** 2026-08-26
 
-Statuses: `Not Started` | `In Progress` | `Completed` | `Blocked` | `Needs Clarification`
+Statuses: `Not Started` | `In Progress` | `Completed` | `On Hold` | `Blocked` | `Needs Clarification`
 
 ---
 
@@ -17,12 +17,14 @@ reports → final output → OneDrive.
 
 - Backend: 70 feature tests, 369 assertions, **all passing on SQL Server 2022,
   MySQL and SQLite**.
-- Frontend: type-checks clean, production build succeeds.
+- Frontend: 66 tests passing, type-check clean, production build succeeds.
 - **Browser UI validation completed** by the project team on 2026-08-25 — all
   screens and the full end-to-end flow exercised, no issues found.
-- Documentation: `README`, `PROJECT-STATUS` and `docs/01`–`16` complete.
-- Every P0 item is closed. The three remaining items are external dependencies
-  that need the client — see the bottom of this page.
+- Documentation: `README`, `PROJECT-STATUS` and `docs/01`–`17` complete.
+- Every P0 item is complete except the Stock Report import, which is built and
+  tested but **on hold** pending client confirmation (D-07).
+- Six items sit with the client. Four block something (D-02, D-03, D-04, D-07);
+  two are decided-for-now defaults (D-05, D-06). See the bottom of this page.
 
 ---
 
@@ -115,7 +117,7 @@ reports → final output → OneDrive.
 | SQL Server verification (core) | Completed | P0 | Migrations, full seed and all 52 core tests run against SQL Server 2022 on 2026-08-26. Three defects found and fixed |
 | SQL Server verification (with Stock Report) | Completed | P0 | Re-run 2026-08-26 after the filtered-index fix: **all 60 pass on SQL Server, MySQL and SQLite**, with `migrate:fresh` verified on each. The fix was a compatibility change only; no Stock Report business rule was altered |
 | Live OneDrive verification | Blocked | P1 | Needs the Azure app registration — D-02 |
-| Documentation | Completed | P1 | README, PROJECT-STATUS, docs/01–16 |
+| Documentation | Completed | P1 | README, PROJECT-STATUS, docs/01–17 |
 
 ---
 
@@ -158,7 +160,9 @@ status columns against a repeat.
 | D-02 | Azure app registration for OneDrive | A live upload test | One environment change |
 | D-03 | The real HHT payload specification | Confirming our contract | Half a day if a mapping is needed |
 | D-04 | Confirmation of report columns | Nothing — cheap to change | An hour per report |
-| **D-05** | **Stock Report confirmation** | **The Stock Report module, currently on hold** | Nil if confirmed as built; see docs/17 §6 for the cost of each alternative |
+| **D-07** | **Stock Report business decisions** | **The Stock Report module, currently on hold** | Nil if confirmed as built; see docs/17 §6 for the cost of each alternative |
+| D-05 | OneDrive folder structure | Nothing — a default is in use | Minutes, if a different layout is wanted |
+| D-06 | Production environment | Deployment, not development | Environment-dependent |
 
 Detail in [docs/15-ASSUMPTIONS-DEPENDENCIES.md](docs/15-ASSUMPTIONS-DEPENDENCIES.md).
 
@@ -166,7 +170,7 @@ Detail in [docs/15-ASSUMPTIONS-DEPENDENCIES.md](docs/15-ASSUMPTIONS-DEPENDENCIES
 
 ## Next
 
-1. Confirm the four Stock Report decisions with the client so the module can come off hold (D-05).
+1. Confirm the four Stock Report decisions with the client so the module can come off hold (D-07).
 2. Rehearse [docs/14](docs/14-DEMO-GUIDE.md) end to end before the client session.
 2. Switch OneDrive to the Graph driver once credentials arrive (D-02).
 3. Confirm the HHT payload and the report columns with the client (D-03, D-04).

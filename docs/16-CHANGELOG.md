@@ -175,6 +175,23 @@ The older flat single-sheet import still works and is still covered by its tests
 
 ---
 
+## v0.2.1 — 2026-08-26
+
+Security hardening, a frontend test foundation, and a documentation
+reconciliation. No business rule changed and the Stock Report module stayed on
+hold throughout.
+
+| Change | Module | Reason |
+| --- | --- | --- |
+| **API rate limiting** | Security | Laravel 12 does not throttle the API group on its own and `throttleApi()` was never called, so every endpoint — sign-in included — accepted unlimited attempts. Sign-in is now 5 a minute per email *and* origin, plus 20 a minute per origin against spraying; authenticated traffic is 300 a minute per user; stock import is 6 per 10 minutes. Every limit is keyed to a caller, never counted globally |
+| 429 in the standard envelope | API | `ThrottleRequestsException` implements `HttpExceptionInterface`, so without its own arm it returned Laravel’s wording and lost the `Retry-After` header. It now returns the application envelope with the seconds to wait, and reveals neither which limit was hit nor whether an account exists |
+| 10 rate-limiting tests | Tests | Lockout, per-account isolation, envelope shape, no technical leakage, no account enumeration, per-user throttling, HHT retries surviving, stock import usable |
+| **66 frontend tests** | Tests | The frontend had no automated coverage at all. Vitest, Testing Library and MSW now cover `DataTable`, `useTableQuery`, `AuthContext`, the route guards, and the Adjust, Verify and Stock Take dialogs. Closes limitation L-03 |
+| API documentation corrected | Docs | `docs/05` described an endpoint that no longer existed — `shop_id` required and a 20 MB cap, against the real `nullable` and 100 MB, with the three-sheet path missing entirely |
+| Requirement statuses reconciled | Docs | 73 of 80 rows still read “Planned” for features with a route, a service and passing tests |
+| Stock Report dependency renamed to **D-07** | Docs | `D-05` had come to mean two different things: the OneDrive folder structure in `docs/15`, and the Stock Report confirmation in `PROJECT-STATUS.md` |
+
+---
 ## Template for later entries
 
 ```

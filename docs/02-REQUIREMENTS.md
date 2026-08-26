@@ -74,7 +74,7 @@ verification, not development.
 
 > **STOCK-001, STOCK-002, STOCK-003 and STOCK-009 to STOCK-011** describe the
 > business Stock Report import. It is built and tested, but the module is
-> **ON HOLD pending client confirmation (D-05)** of four business decisions —
+> **ON HOLD pending client confirmation (D-07)** of four business decisions —
 > see `17-STOCK-REPORT-IMPORT.md` §6. The flat single-sheet import is unaffected
 > and fully signed off.
 
