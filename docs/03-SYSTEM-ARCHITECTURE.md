@@ -49,7 +49,8 @@ Key services:
 
 | Service | Responsibility |
 | --- | --- |
-| `StockImportService` | Reads the Excel file, validates every row, replaces the shop's stock atomically |
+| `StockImportService` | Reads a flat single-sheet file, validates every row, replaces one shop's stock atomically |
+| `StockReport\StockReportReader` / `StockReportImportService` | Reads the three-sheet business Stock Report a slice at a time and replaces the stock of every shop it names. **On hold — see docs/17** |
 | `HhtSubmissionService` | Receives a completed count, enforces submission identity and idempotency |
 | `VerificationService` | Corrects counted lines, keeps the audit header in step, writes the audit trail |
 | `StockAdjustmentService` | Posts an adjustment immediately and records its history |
@@ -79,7 +80,9 @@ behave identically and why a new list screen is small to add.
 Shops / Items / Devices
         │
         ▼
-Excel file ──► StockImportService ──► item_stocks   (replaces, atomic)
+Excel file ──► StockImportService        ──► item_stocks   (replaces, atomic)
+   or    ──► StockReportImportService  ──► item_stocks for every shop
+                                              the report names
         │
         ▼
 HHT device (offline counting, local storage only)
@@ -203,6 +206,7 @@ route into the standard envelope:
 | `ModelNotFoundException` | 404 | “The requested record could not be found.” |
 | `BusinessRuleException` | 409 / 422 | The business message itself, written for the user |
 | `QueryException` | 500 | A generic database message; the detail goes to the log |
+| `ThrottleRequestsException` | 429 | “Too many requests. Please wait a moment and try again.” plus the seconds to wait |
 | Anything else | 500 | A generic message; the detail goes to the log |
 
 Stack traces, SQL text and exception class names never reach the response in
@@ -217,9 +221,10 @@ production. `APP_DEBUG=true` adds a `debug` block for developers only.
 | Shop scoping | `ScopesToUserShops` restricts queries to a user's assigned shops |
 | Input | FormRequest validation on every write; type and length limits |
 | SQL injection | Eloquent and the query builder only — no string-concatenated SQL |
-| File upload | Extension and MIME check, 20 MB limit, stored outside the public path |
+| File upload | Extension and MIME check, 100 MB limit, stored outside the public path |
 | XSS | React escapes by default; the API returns data, not markup |
 | CSRF | Not applicable to token-authenticated API routes; CORS is restricted to the configured frontend origin |
+| Rate limiting | Every API route is throttled. Sign-in is limited per email **and** origin so one account cannot be brute-forced and one caller cannot lock another out; authenticated traffic is counted per user, never globally. See `05-API-DOCUMENTATION.md` |
 | Audit logging | `spatie/laravel-activitylog` records the significant actions with old and new values |
 | Secrets | Database and Graph credentials live only in `.env`; the settings API never returns them |
 

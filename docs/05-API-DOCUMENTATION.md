@@ -43,7 +43,40 @@ Every list endpoint accepts:
 
 Status codes: `200` OK · `201` Created · `401` Unauthenticated · `403` No
 permission · `404` Not found · `409` Business conflict · `422` Validation or
-business rule.
+business rule · `429` Too many requests.
+
+## Rate limiting
+
+Every API route is throttled. Limits are counted per caller — a signed-in user,
+or an origin for anyone not yet signed in — never globally, so one busy or
+hostile caller cannot exhaust everybody else's allowance.
+
+| Scope | Limit | Counted by |
+| --- | --- | --- |
+| `POST /auth/login` | 5 per minute | email **and** origin together |
+| `POST /auth/login` | 20 per minute | origin alone, to stop one source spraying many accounts |
+| All other API routes, signed in | 300 per minute | user |
+| All other API routes, not signed in | 60 per minute | origin |
+| `POST /stock-imports` | 6 per 10 minutes | user | 
+
+The general allowance is deliberately roomy: a screen in the web application
+fires several requests at once, and an HHT device must be free to retry a
+dropped submission — a retry is how idempotency is exercised, so throttling one
+would strand a finished count on the device.
+
+Exceeding a limit returns `429` in the standard envelope:
+
+```json
+{
+  "success": false,
+  "message": "Too many requests. Please wait a moment and try again.",
+  "retry_after_seconds": 47
+}
+```
+
+The usual `Retry-After` and `X-RateLimit-*` headers are set so a client can back
+off. The reply never names the limit that was reached, and on a sign-in attempt
+it never reveals whether the account exists.
 
 ---
 
@@ -143,21 +176,70 @@ Body: `shop_id`, `device_code` (unique within the shop), `description`,
 
 ### POST `/stock-imports`
 
-**Purpose:** Import a shop's stock file and **replace** the stock it currently
-holds.
+**Purpose:** Import stock and **replace** what is currently held.
 **Permission:** `stock.import`
 **Content type:** `multipart/form-data`
+**Rate limit:** 6 per 10 minutes per user.
+
+Two file shapes are accepted. Which one arrived is decided from the workbook's
+sheet names, not from a parameter.
 
 | Field | Rules |
 | --- | --- |
-| `shop_id` | required, must exist |
-| `file` | required, `.xls` or `.xlsx`, ≤ 20 MB |
+| `file` | required, `.xls` or `.xlsx`, ≤ 100 MB |
+| `shop_id` | **optional**, must exist. Required for a flat file; for a Stock Report it acts as a filter, limiting the import to that one shop |
+
+#### The business Stock Report (three sheets)
+
+A Dynamics AX export whose sheets are named `stock`, `all batches` and
+`Item Master`. It carries every branch it was run for, so one upload replaces
+the stock of each shop it names; shops it does not mention are untouched. Shops
+are matched by warehouse code (`INVENTLOCATIONID`) through the shop's AX
+location.
+
+Response `201` — note `data` is an **array**, one entry per shop:
+
+```json
+{
+  "success": true,
+  "message": "Stock Report imported successfully. 8,910 row(s) across 2 shop(s) imported and 27 previous record(s) replaced.",
+  "data": [
+    { "id": 1, "shop_code": "PHM001", "total_records": 4953, "success_records": 4950, "failed_records": 3, "replaced_records": 15, "status": "completed_with_errors" },
+    { "id": 2, "shop_code": "PHM002", "total_records": 3960, "success_records": 3960, "failed_records": 0, "replaced_records": 12, "status": "completed" }
+  ],
+  "meta": {
+    "format": "stock_report",
+    "summary": {
+      "shops": 2,
+      "total_rows": 8913,
+      "imported": 8910,
+      "failed": 3,
+      "replaced": 27,
+      "items_synced": 4729,
+      "barcodes_matched": 6394
+    }
+  }
+}
+```
+
+`meta.format` is `stock_report`, which is how a client tells the two shapes
+apart. See `17-STOCK-REPORT-IMPORT.md` for the sheet and column contract.
+
+> The Stock Report module is **on hold pending client confirmation** of four
+> business decisions (quantity column, warehouse mapping, item-master sync and
+> price source). The endpoint behaves as described today, but those points may
+> still change — see `17-STOCK-REPORT-IMPORT.md` §6.
+
+#### The flat single-sheet file
+
+One sheet for one shop. `shop_id` is **required**; omitting it returns `422`
+with *"Choose the shop this file belongs to…"*.
 
 Required columns (headings matched flexibly): **Product Code**, **Product
 Description**, **System Stock**.
-Optional columns: Shop, Barcode, UOM, Price, Batch, Expiry Date, Shelf Location.
+Optional: Shop, Barcode, UOM, Price, Batch, Expiry Date, Shelf Location.
 
-Response `201`:
+Response `201` — `data` is a **single object**, and there is no `meta.summary`:
 
 ```json
 {
@@ -167,19 +249,23 @@ Response `201`:
 }
 ```
 
-**Errors**
+#### Errors
 
 | Status | Cause |
 | --- | --- |
-| 422 | Wrong extension, a required column missing, the workbook unreadable, or every row invalid — **nothing is changed** |
+| 422 | Wrong extension, over 100 MB, a required sheet or column missing, the workbook unreadable, every row invalid, or a flat file with no `shop_id` — **nothing is changed** |
 | 403 | Caller lacks `stock.import` |
+| 429 | More than 6 imports in 10 minutes |
 
 Row-level problems do not fail the import: valid rows are written, invalid rows
 are listed with a reason and `status` becomes `completed_with_errors`.
 
-The delete-and-insert runs in one transaction. A failure leaves the previous
-stock exactly as it was.
+The whole exchange runs in one transaction. A failure leaves the previous stock
+exactly as it was.
 
+A large report takes a minute or more to process, and the endpoint lifts its own
+execution limit for the duration. The web server's own timeout still applies —
+see `12-DEPLOYMENT-GUIDE.md`.
 ### GET `/stock-imports` · `/stock-imports/{id}` · `/stock-imports/{id}/errors` · `/stock-imports/template`
 
 History, detail, the row-level errors, and the expected column list.

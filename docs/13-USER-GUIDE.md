@@ -94,19 +94,25 @@ both have an `HHT-01` — they are different devices.
 
 **Master → Item Stock Import.**
 
-1. Choose the **shop**.
-2. Choose the **Excel file** (`.xls` or `.xlsx`).
+1. Choose the **Excel file** (`.xls` or `.xlsx`).
+2. Choose a **shop** only if you want to import that one branch. The business
+   Stock Report names its own branches, so you can normally leave this set to
+   *All shops named in the file*. An older single-sheet file does need a shop.
 3. Click **Import Stock**.
 4. Read the confirmation carefully, then **Import and replace**.
 
+A large report takes a minute or two. Leave the tab open while it works — the
+screen tells you what stage it has reached.
+
 ### The one thing to remember
 
-**Importing replaces that shop's stock.** Everything the shop held before is
-removed, and the file takes its place. This is what the business wants — the
-file is the truth — but it means importing the wrong file for the wrong shop
-matters. That is why you are asked to confirm.
+**Importing replaces stock.** Everything a shop held before is removed, and the
+file takes its place. That is what the business wants — the file is the truth —
+but it means importing the wrong file matters, which is why you are asked to
+confirm.
 
-Other shops are never affected.
+A Stock Report replaces the stock of every branch it covers. Branches the file
+does not mention are left completely alone.
 
 ### The summary
 
@@ -125,13 +131,18 @@ the value and what was wrong with it. Fix those rows and import again.
 You will see a message such as *“The file is missing the required column(s):
 System Stock.”* Nothing is changed — the shop still has exactly what it had.
 
-### Which columns are needed
+### Which file to use
 
-Required: **Product Code**, **Product Description**, **System Stock**.
-Optional: Shop, Barcode, UOM, Price, Batch, Expiry Date, Shelf Location.
+**The business Stock Report** is the normal file. It has three sheets — `stock`,
+`all batches` and `Item Master` — and covers every branch it was run for. You do
+not need to choose a shop for it.
 
-Headings are matched sensibly — “Item Code”, “Product Code” and “SKU” all work,
-as do “Closing Stock”, “Qty” and “System Stock”.
+**An older single-sheet file** still works for one shop. It needs the columns
+**Product Code**, **Product Description** and **System Stock**; Shop, Barcode,
+UOM, Price, Batch, Expiry Date and Shelf Location are optional. Headings are
+matched sensibly — “Item Code”, “Product Code” and “SKU” all work, as do
+“Closing Stock”, “Qty” and “System Stock”. For this file you must choose the
+shop.
 
 ---
 

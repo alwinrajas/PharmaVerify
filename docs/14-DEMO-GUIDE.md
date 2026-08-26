@@ -87,8 +87,9 @@ That single point is the architecture of the whole system. Do not rush it.
 
 **Master → Item Stock Import.** Note the current record count for the shop first.
 
-Choose the shop, choose the file, click **Import Stock**. Read the confirmation
-aloud:
+Choose the file and click **Import Stock**. The shop selector is optional — the
+report names its own branches — so leave it on *All shops named in the file*.
+Read the confirmation aloud:
 
 > “This is the rule the business asked for. A stock file does not add to what the
 > shop has — it *replaces* it. The file is the truth.”
