@@ -20,5 +20,11 @@ export default defineConfig({
     // The default worker pool does not start reliably on Windows here.
     pool: 'forks',
     maxWorkers: 1,
+    // One worker runs every file in sequence, so a dialog test driven by
+    // userEvent can sit well past the 5s default while the rest of the suite is
+    // still working. That is a slow machine, not a broken assertion — a test
+    // that genuinely fails still fails, it simply gets room to finish first.
+    testTimeout: 15000,
+    hookTimeout: 15000,
   },
 })
