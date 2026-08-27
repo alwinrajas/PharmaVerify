@@ -20,7 +20,7 @@ Verified audit
 Click "Generate Final Output"
      │  FinalOutputService::generate()
      ▼
-Workbook written to storage/app/final-output/
+Workbook written to storage/app/private/final-output/
 final_outputs row created, onedrive_status = not_uploaded
      │
      ▼
@@ -101,9 +101,15 @@ POST {root}:/{folder}/{file}:/createUploadSession  then PUT in 5 MB chunks
 `{root}` is `/drives/{drive-id}/root` when `ONEDRIVE_DRIVE_ID` is set, otherwise
 `/users/{upn}/drive/root` from `ONEDRIVE_USER_PRINCIPAL`.
 
+The access token is cached for its stated lifetime less five minutes, keyed by
+tenant and application — never by the secret. Two shares in a row therefore cost
+one sign-in, which keeps the application clear of Azure's token endpoint limits.
+If Graph rejects a token with `401`, the cached copy is discarded so the next
+attempt signs in afresh rather than failing the same way until it expired.
+
 ### `demo` — demonstration
 
-Copies the file into `storage/app/onedrive-demo/{folder}/` and returns the same
+Copies the file into `storage/app/private/onedrive-demo/{folder}/` and returns the same
 result shape, so progress, success, failure and retry can all be demonstrated
 and tested. `ONEDRIVE_DEMO_FAIL_RATE` (0–1) forces a proportion of uploads to
 fail so the failure path can be shown deliberately.
@@ -132,6 +138,35 @@ ONEDRIVE_FOLDER="PharmaVerify/FinalOutput"
 ONEDRIVE_DEMO_FAIL_RATE=0
 ```
 
+The same block is in `.env.example` and `.env.sqlsrv.example`.
+
+### What counts as configured
+
+With `ONEDRIVE_DRIVER=graph`, the share is refused **before anything is sent to
+Microsoft** unless all of the following hold:
+
+| Value | Requirement |
+| --- | --- |
+| `ONEDRIVE_TENANT_ID` | Present, and not left as `YOUR_…` |
+| `ONEDRIVE_CLIENT_ID` | Present, and not left as `YOUR_…` |
+| `ONEDRIVE_CLIENT_SECRET` | Present, and not left as `YOUR_…` |
+| `ONEDRIVE_DRIVE_ID` **or** `ONEDRIVE_USER_PRINCIPAL` | At least one present |
+
+**A `YOUR_` placeholder counts as missing.** Half-filled configuration is a
+common way to get stuck: with only some values replaced, the application would
+otherwise call a tenant that cannot exist and report a sign-in failure, sending
+the administrator looking for a credential problem that is really an unfinished
+`.env`. It now says the configuration is incomplete instead.
+
+`ONEDRIVE_FOLDER` is optional and defaults to `PharmaVerify/FinalOutput`. The
+folder is created by Graph on first upload; it does not need to exist first.
+
+> The task brief for this work referred to `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`,
+> `AZURE_CLIENT_SECRET` and `ONEDRIVE_TARGET_FOLDER`. This project already had
+> the `ONEDRIVE_*` names in place, so they were kept: `ONEDRIVE_TENANT_ID`,
+> `ONEDRIVE_CLIENT_ID`, `ONEDRIVE_CLIENT_SECRET` and `ONEDRIVE_FOLDER` are the
+> same four settings.
+
 ### Azure app registration
 
 1. Azure Portal → **App registrations** → **New registration**.
@@ -139,6 +174,12 @@ ONEDRIVE_DEMO_FAIL_RATE=0
 3. **Certificates & secrets** → **New client secret** → copy the value at once.
 4. **API permissions** → **Microsoft Graph** → **Application permissions** →
    `Files.ReadWrite.All` → **Grant admin consent**.
+
+   Both parts matter. It must be an **application** permission, not a delegated
+   one — there is no signed-in user in a client-credentials flow — and consent
+   must be granted by a **tenant administrator**. Without consent the token is
+   issued perfectly happily and every upload then fails with `accessDenied`,
+   which reads like a folder problem and is not one.
 5. Put the three values in `.env`, set `ONEDRIVE_DRIVER=graph`, and identify the
    destination drive.
 6. `php artisan config:clear`.
@@ -155,12 +196,46 @@ configured. Secrets are never returned by the API or shown in the interface.
 | Not configured | “OneDrive has not been configured yet. Ask your administrator to supply the Microsoft 365 application details.” |
 | Sign-in failed | “PharmaVerify could not sign in to Microsoft 365. Please check the OneDrive configuration.” |
 | `accessDenied` | “OneDrive refused the upload. The application does not have permission to write to this folder.” |
-| `quotaLimitReached` | “The OneDrive account does not have enough space for this file.” |
+| `quotaLimitReached`, `insufficientStorage` | “The OneDrive account does not have enough space for this file.” |
 | `itemNotFound` | “The destination folder could not be found in OneDrive.” |
+| `activityLimitReached` | “Microsoft 365 received too many requests just now. Please wait a moment and try again.” |
+| `unauthenticated`, `invalidAuthenticationToken` | “The Microsoft 365 sign-in expired during the upload. Please try again.” |
+| `nameAlreadyExists` | “A file with this name already exists in the destination folder.” |
+| `malwareDetected` | “Microsoft 365 blocked this file during the upload.” |
+| `resourceModified` | “The destination changed while the file was uploading. Please try again.” |
+| `invalidRequest` | “Microsoft 365 rejected the request. Please check the OneDrive folder configuration.” |
 | Anything else | “The upload to OneDrive could not be completed. Please try again.” |
 | File missing locally | “The final output file is no longer available. Please generate it again.” |
 
-Graph responses are never shown raw. The technical detail goes to the log.
+Graph responses are never shown raw, and the failure is returned in the
+application's standard envelope with status `502` — the upstream service failed,
+not the request. The technical detail goes to the log.
+
+### What an administrator gets when sign-in fails
+
+The user sees one readable sentence. The log carries the reason Microsoft gave:
+
+```
+OneDrive: Microsoft 365 refused the sign-in request.
+  status: 401
+  error: invalid_client
+  error_description: AADSTS7000215: Invalid client secret provided…
+  tenant_id / client_id
+```
+
+Common `AADSTS` codes:
+
+| Code | Meaning |
+| --- | --- |
+| `AADSTS7000215` | The client secret is wrong |
+| `AADSTS7000222` | The client secret has expired — secrets expire, diarise the renewal |
+| `AADSTS700016` | The application was not found in this tenant — wrong client or tenant id |
+| `AADSTS900023` | The tenant id is not valid |
+| `AADSTS500011` | The resource principal was not found in the tenant |
+
+**The client secret and the access token are never logged**, never returned by
+the API, and never written to `last_error` or the activity log. A test asserts
+this rather than trusting it.
 
 ### Retry
 
@@ -170,7 +245,53 @@ visible. Retry is manual — the application never retries on its own.
 
 ---
 
-## 9. Upload history
+## 9. Live verification — the procedure for when credentials arrive
+
+Everything below the driver switch is written and tested against a faked Graph.
+What cannot be tested without a real tenant is the tenant itself: consent,
+secret validity and the destination drive. When the client supplies the details,
+this is the sequence.
+
+1. Put the four values in `.env` on the target environment. Do not commit them.
+2. `php artisan config:clear && php artisan config:cache`.
+3. Sign in as an administrator and open **Settings → Integrations**. It should
+   report driver `graph` and configured `true`. If configured is `false`, a
+   value is still missing or still a `YOUR_` placeholder — the table in §7 says
+   which are required.
+4. Pick a **test audit**, not real client stock. Generate a final output from it.
+5. Confirm `onedrive_status` is `not_uploaded` — generating must upload nothing.
+6. Click **Share to OneDrive**.
+7. Expect success, and an `onedrive_url` on the row that opens the file.
+8. Confirm in OneDrive that the file is in the configured folder, with the
+   expected name and a plausible size.
+9. Check the **Activity Log** for “Final output shared to OneDrive” against your
+   own user.
+10. Click **Share** again on the same row — it must be refused with `422`, not
+    uploaded twice.
+11. Read `storage/logs/laravel.log` and confirm no client secret and no access
+    token appear anywhere in it.
+12. Optionally test a file over 4 MB to exercise the upload session.
+
+Record the result against **D-02** in `15-ASSUMPTIONS-DEPENDENCIES.md`.
+
+---
+
+## 10. Security notes
+
+| Concern | How it is handled |
+| --- | --- |
+| Secret storage | Environment only. Never in the repository, never in the database, never in a response |
+| Secret in logs | Never logged. The Azure `error_description` is logged instead, which diagnoses the problem without containing the secret |
+| Access token | Cached server-side, keyed by a SHA-1 of tenant and client id. Never logged or returned |
+| Transport | HTTPS to `login.microsoftonline.com` and `graph.microsoft.com` |
+| Least privilege | `Files.ReadWrite.All` is the narrowest application permission that can write a file. Scope the app registration to a dedicated account or a single drive |
+| Secret rotation | Azure secrets expire. Rotate in `.env`, then `config:cache`. A cached token stays valid for its remaining lifetime; a rejected one is discarded on the next `401` |
+| Who may share | The `onedrive.share` permission, enforced in the controller. The frontend hides the button, but the API is the authority |
+| Audit trail | Every share and every failure is written to the activity log against the user who clicked |
+
+---
+
+## 11. Upload history
 
 The Final Output screen is the history: file name, records, verification and
 adjustment status, OneDrive status, attempt count, and when it was uploaded.

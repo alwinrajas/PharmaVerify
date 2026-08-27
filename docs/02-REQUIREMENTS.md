@@ -163,11 +163,17 @@ verification, not development.
 | ONEDRIVE-003 | Retry on failure | P1 | A failed upload can be retried and the attempt count increments | Implemented |
 | ONEDRIVE-004 | Upload history | P1 | Previous uploads and their status are listed | Implemented |
 
-> **ONEDRIVE-001 to ONEDRIVE-004** are implemented and tested against the
-> demonstration driver, including the rule that nothing uploads before the user
-> clicks Share. The Microsoft Graph driver is written in full but has **never
-> run against a live tenant**, because the Azure application registration is
-> still outstanding (**D-02**).
+> **ONEDRIVE-001 to ONEDRIVE-004** are implemented and tested, including the
+> rule that nothing uploads before the user clicks Share. The Microsoft Graph
+> driver is written in full and covered by 21 automated tests that fake Graph at
+> the network boundary — configuration, sign-in failure, upload, the chunked
+> session, Graph errors, RBAC and secret handling.
+>
+> It has still **never run against a live tenant**, because the Azure
+> application registration is outstanding. D-02 is therefore
+> **Code Ready / Live Verification Blocked**: consent, secret validity and the
+> destination drive can only be proven against the client's real tenant. The
+> procedure for doing so is in `09-ONEDRIVE-INTEGRATION.md` §9.
 
 ## User Management and Settings (USER / SET)
 
