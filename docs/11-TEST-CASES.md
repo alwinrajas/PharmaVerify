@@ -3,7 +3,7 @@
 Three layers:
 
 - **Frontend automated** — `frontend/src/**/*.test.tsx`, run with `npm test`
-  from `frontend/`. 66 tests using **Vitest**, **Testing Library** and **MSW**.
+  from `frontend/`. 86 tests using **Vitest**, **Testing Library** and **MSW**.
   They cover the shared machinery behind every screen (`DataTable`,
   `useTableQuery`, `AuthContext`, route guards) and the three dialogs that carry
   business rules (Adjust, Verify, Stock Take). Screens themselves are covered by
@@ -11,9 +11,9 @@ Three layers:
 
 
 - **Backend automated** — `backend/tests/Feature`, run with `php artisan test`.
-  70 tests, 369 assertions, all passing. They cover the rules most likely to
+  91 tests, 448 assertions, all passing. They cover the rules most likely to
   regress: import replacement, HHT idempotency, variance calculation, immediate
-  adjustment, stock take, RBAC, rate limiting and error shape.
+  adjustment, stock take, RBAC, rate limiting, OneDrive sharing and error shape.
 - **Manual** — the walkthrough below. **Executed in full on 2026-08-25 by the
   project team: all screens and the complete end-to-end business flow passed,
   with no functional, UI, navigation or validation issues found.** Repeat it
@@ -23,9 +23,14 @@ Automated tests run on SQLite by default. The same 52 core tests have also been
 run against **Microsoft SQL Server 2022** and **MySQL**, all passing on each —
 see `15-ASSUMPTIONS-DEPENDENCIES.md` D-01.
 
-**Current count: 70 backend tests, all passing on all three engines** — SQL
-Server 2022, MySQL and SQLite — verified on 2026-08-26. `migrate:fresh` was run
-on each beforehand, so the schema itself is confirmed on every supported engine.
+**Current count: 91 backend tests, 448 assertions, all passing on all three
+engines** — SQL Server 2022, MySQL and SQLite — re-verified on 2026-08-27 after
+the OneDrive work. `migrate:fresh` runs on each beforehand, so the schema itself
+is confirmed on every supported engine.
+
+The 21 OneDrive tests fake Microsoft Graph at the network boundary. They make no
+real call and need no credential, so they run identically on every engine — but
+they prove nothing about a live tenant. See D-02.
 
 To run them against SQL Server, point the `DB_*` variables at the instance
 (`backend/.env.sqlsrv.example` has the block) and run `php artisan test`. Three

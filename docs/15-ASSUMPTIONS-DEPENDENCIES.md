@@ -40,21 +40,35 @@ that were not available. Per-user driver registration does not work: Windows
 reads ODBC *driver* registrations only from `HKLM`. Installing that driver with
 admin rights is the one remaining step for host-native SQL Server development.
 
-### D-02 · OneDrive credentials — **Open**
+### D-02 · OneDrive credentials — **Code Ready / Live Verification Blocked**
 
-**Situation.** No Azure app registration was available.
+**Situation.** No Azure app registration was available, and none has been
+supplied. Every credential in the environment is still a `YOUR_…` placeholder.
 
-**What we did.** The Microsoft Graph driver is fully written — client credentials
-flow, simple upload under 4 MB, chunked upload session above it, and readable
-handling of the common Graph errors. A demonstration driver is active meanwhile,
-copying to local storage and returning the same result shape so progress,
-success, failure and retry all work.
+**What we did.** The Microsoft Graph driver is written and now covered by
+21 automated tests that fake Graph at the network boundary — client credentials
+flow, token caching and invalidation, simple upload under 4 MB, chunked upload
+session above it, the nine Graph error codes worth distinguishing, RBAC, the
+explicit-share rule, re-share refusal, and assertions that no secret or token
+reaches a response, the database or the log. A demonstration driver remains
+active meanwhile.
+
+Hardened on 2026-08-26 while preparing for production (see
+`16-CHANGELOG.md` v0.2.3): a half-filled configuration is now refused before any
+request is sent, a failed sign-in logs the reason Azure gave, and the access
+token is cached rather than fetched for every upload.
 
 **Needed.** Tenant ID, client ID, client secret, `Files.ReadWrite.All` as an
-application permission with admin consent, and the destination drive or user.
+**application** permission with **tenant administrator consent**, and the
+destination drive id or user principal.
 
-**Effort once available.** One environment change, then a live upload test. No
-code change.
+**What cannot be verified without them.** That the tenant exists, that consent
+was actually granted, that the secret is valid and unexpired, and that the
+destination drive is writable. No test can stand in for a real tenant, and none
+of the tests here claims to.
+
+**Effort once available.** One environment change, then the twelve-step live
+verification in `09-ONEDRIVE-INTEGRATION.md` §9. No code change expected.
 
 ### D-03 · The real HHT payload — **Open**
 
@@ -97,6 +111,31 @@ described every report in one place so a column is added by editing a definition
 
 Hosting, TLS certificates, backup schedule and network egress to Microsoft Graph
 are all environment decisions. `12-DEPLOYMENT-GUIDE.md` states what is required.
+
+### D-08 · Backup execution and retention — **Open**
+
+**Situation.** The backup and recovery procedure is written and scripted
+(`18-BACKUP-AND-RECOVERY.md`, `database/scripts/`), but **the application runs
+none of it**. PharmaVerify has no scheduler, no backup agent and no retention
+policy in code, and it would be untrue to imply otherwise.
+
+**What we provide.** The procedure, the SQL Server backup and restore scripts, a
+PowerShell wrapper for Task Scheduler, and `verify-restore.sql`, which checks
+the application's own invariants after a restore.
+
+**Needed from the client or their DevOps team.**
+
+| # | Item | Why it cannot be decided here |
+| --- | --- | --- |
+| 1 | Schedule the backups | Needs the hosting environment |
+| 2 | Backup storage, off-site copy and encryption at rest | Infrastructure and cost |
+| 3 | Monitoring and alerting on backup failure | A silently failing job is trusted |
+| 4 | Confirm RPO 15 min and RTO 2 hours are acceptable | A business decision |
+| 5 | Statutory retention for pharmacy stock records | A compliance question |
+| 6 | Run the pre-production restore drill | Needs the real environment |
+
+**Effort once the environment exists.** Roughly half a day to schedule the jobs
+and run the drill. No code change.
 
 ### D-07 · Stock Report business decisions — **Open**
 
@@ -248,15 +287,16 @@ The Android application itself.
 | # | Limitation | Consequence |
 | --- | --- | --- |
 | ~~L-01~~ | ~~Not executed against SQL Server~~ | **Closed 2026-08-26.** Migrations, the full seed and all 52 tests run against SQL Server 2022. Repeat against the client's own instance before go-live — see D-01 |
-| L-02 | OneDrive not tested against a live tenant | See D-02 |
-| ~~L-03~~ | ~~No automated frontend tests~~ | **Closed 2026-08-26.** 66 Vitest tests cover the shared machinery and the three business dialogs. Individual screens are still covered by the manual walkthrough, which should be repeated after a significant frontend change |
+| L-02 | OneDrive not tested against a live tenant | The Graph path is covered by 21 tests against a faked Graph, but consent, secret validity and the destination drive can only be proven against the client's real tenant — see D-02 |
+| ~~L-03~~ | ~~No automated frontend tests~~ | **Closed 2026-08-26**, extended 2026-08-27. 86 Vitest tests cover the shared machinery, the three business dialogs, the Final Output / OneDrive share and the failed-chunk boundary. Individual screens are still covered by the manual walkthrough, which should be repeated after a significant frontend change |
 | ~~L-04~~ | ~~The UI was not verified in a browser~~ | **Closed 2026-08-25.** No browser automation was available in the build environment, so the project team performed the manual walkthrough. All screens and the full end-to-end flow were exercised; no functional, UI, navigation or validation issues were found |
 | L-05 | Import is synchronous | A very large file ties up the request. Queueing it is straightforward if real files prove large |
 | L-06 | No email | Password reset is administrator-driven; there is no self-service reset |
 | L-07 | Single application language | English only |
-| L-08 | Frontend ships as one bundle (~830 KB, ~248 KB gzipped) | Acceptable for an internal application; route-level code splitting is a small change if wanted |
+| ~~L-08~~ | ~~Frontend ships as one bundle (~830 KB, ~248 KB gzipped)~~ | **Closed 2026-08-27.** Split at route boundaries: each screen is fetched when it is first opened, taking the initial payload to ~628 KB (~199 KB gzipped) across 45 chunks. Every route, URL and permission is unchanged, and a boundary shows a readable failure if a chunk cannot be fetched |
 | L-09 | Dashboard has no charts | The requirement asked not to overload it. The variance breakdown is a proportional bar |
 | L-10 | Adjustment history has no reversal action | Correcting means posting another adjustment |
+| L-11 | No backup scheduler in the application | The procedure and scripts are supplied, but the infrastructure must run them — see D-08 |
 
 ---
 
@@ -266,6 +306,7 @@ The Android application itself.
 | --- | --- | --- |
 | 1 | D-01 SQL Server | The only dependency that could surface real defects |
 | 2 | D-03 HHT payload | Decides whether a mapping layer is needed |
-| 3 | D-02 OneDrive credentials | Turns a demonstrated flow into a live one |
+| 3 | D-02 OneDrive credentials | Turns a tested-but-faked flow into a verified one |
 | 4 | D-04 Report columns | Cheap to change, but better settled before users see them |
 | 5 | A-04 Batch in real files | Affects how real stock files import |
+| 6 | D-08 Backup execution | The procedure exists; only the client can schedule and drill it |

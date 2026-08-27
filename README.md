@@ -66,7 +66,7 @@ pharmacy-stock-verification/
 │   │   └── Exceptions/      API error translation
 │   ├── database/            migrations · seeders
 │   ├── routes/api.php       Every endpoint
-│   └── tests/Feature/       70 feature tests
+│   └── tests/Feature/       91 feature tests
 │
 ├── frontend/                React SPA
 │   └── src/
@@ -78,7 +78,7 @@ pharmacy-stock-verification/
 │       ├── services/        API client, error translation, downloads
 │       └── routes/          Route table with permission guards
 │
-├── docs/                    01-BRD … 17-STOCK-REPORT-IMPORT
+├── docs/                    01-BRD … 18-BACKUP-AND-RECOVERY
 ├── database/
 │   ├── sql/                 Generated SQL Server schema
 │   └── sample-data/         Sample stock import files (valid and with errors)
@@ -220,7 +220,7 @@ cd backend
 php artisan test
 ```
 
-70 feature tests, 369 assertions, covering the rules most likely to regress:
+91 feature tests, 448 assertions, covering the rules most likely to regress:
 stock import replacement and its atomicity, HHT submission idempotency, variance
 calculation, immediate adjustment posting, stock take not touching the item
 master, RBAC and shop scoping, and the shape of error responses.
@@ -241,10 +241,10 @@ npm run lint
 
 ```bash
 cd frontend
-npm test            # Vitest, 66 tests
+npm test            # Vitest, 86 tests
 ```
 
-66 frontend tests cover the shared machinery every screen depends on —
+86 frontend tests cover the shared machinery every screen depends on —
 `DataTable`, `useTableQuery`, `AuthContext` and the route guards — and the three
 dialogs that carry business rules: Adjust, Verify and Stock Take. The API is
 mocked at the network boundary with MSW, so the components exercise the real
@@ -331,6 +331,7 @@ Each is covered by a feature test.
 | [15-ASSUMPTIONS-DEPENDENCIES](docs/15-ASSUMPTIONS-DEPENDENCIES.md) | What we assumed, what is outstanding |
 | [16-CHANGELOG](docs/16-CHANGELOG.md) | Version history |
 | [17-STOCK-REPORT-IMPORT](docs/17-STOCK-REPORT-IMPORT.md) | The official Stock Report file, how it is imported and how it performs |
+| [18-BACKUP-AND-RECOVERY](docs/18-BACKUP-AND-RECOVERY.md) | What to back up, how to restore it, RPO and RTO, and which parts the client's infrastructure must run |
 | [PROJECT-STATUS](PROJECT-STATUS.md) | Module-by-module status |
 
 ---
@@ -339,7 +340,7 @@ Each is covered by a feature test.
 
 | # | Item | Effect |
 | --- | --- | --- |
-| D-02 | Azure app registration for OneDrive | The Graph driver is written but untested against a live tenant; the demonstration driver is active |
+| D-02 | Azure app registration for OneDrive | **Code ready, live verification blocked.** The Graph driver is written and covered by 21 tests against a faked Graph, but no live tenant has been available; the demonstration driver is active |
 | D-03 | The real HHT payload specification | Our contract is documented; a mapping would live in one service method |
 | D-04 | Confirmation of report columns | Chosen by us; changed by editing one definition |
 

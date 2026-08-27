@@ -192,6 +192,67 @@ hold throughout.
 | Stock Report dependency renamed to **D-07** | Docs | `D-05` had come to mean two different things: the OneDrive folder structure in `docs/15`, and the Stock Report confirmation in `PROJECT-STATUS.md` |
 
 ---
+
+## v0.2.2 — 2026-08-26
+
+Backup and recovery readiness. Documentation and operational scripts only — no
+application code, schema, API behaviour or business rule changed, and the Stock
+Report module stayed on hold.
+
+| Change | Module | Reason |
+| --- | --- | --- |
+| **`docs/18-BACKUP-AND-RECOVERY.md`** | Docs | The deployment guide carried two checklist rows saying a backup should exist, and nothing else: no procedure, no restore steps, no RPO or RTO. The new document covers what to back up, the SQL Server approach, the full and restore procedures, verification, frequency, retention, storage security, the pre-production drill, and who is responsible for each part |
+| **Corrected storage path** | Docs | The guide told the reader to back up `storage/app/final-output` and grant it write permission. Laravel's `local` disk is rooted at `storage/app/private`, so that path is empty — a backup job following the documentation would have copied nothing and reported success. Corrected in `docs/12` and `docs/09` |
+| `database/scripts/backup-sqlserver.sql` | Ops | Full, differential and log backups with `CHECKSUM` and `RESTORE VERIFYONLY`, plus a query to confirm the schedule is actually running |
+| `database/scripts/restore-sqlserver.sql` | Ops | Point-in-time restore, including the orphaned-login re-mapping that otherwise leaves a perfectly restored database the application cannot connect to |
+| `database/scripts/verify-restore.sql` | Ops | Read-only checks against a restored database: schema, reference data, referential integrity, and the invariants that matter here — variance equals physical minus system, stock unique per shop/product/batch, one audit per shop/device/audit-number |
+| `database/scripts/Backup-PharmaVerify.ps1` | Ops | Task Scheduler wrapper: backs up, verifies, copies the generated files and prunes to a retention window. Exits non-zero so a failed run raises an alert rather than passing unnoticed |
+| RPO 15 minutes, RTO 2 hours | Docs | Stated as targets for the client to confirm, with the schedule that achieves them and the honest note that rebuilding a lost server is a different exercise |
+| Dependency **D-08** and limitation **L-11** | Docs | The application has no backup scheduler. Recorded as a client dependency rather than implied to be handled |
+| Deployment checklist extended to 24 rows | Docs | Recovery model, the three backup types, alerting on failure, the restore drill and `.env` custody were all absent |
+| Scripts executed, not just written | Ops | The whole cycle was run against SQL Server 2022: backup, `VERIFYONLY`, restore of full + differential + log into a separate database, then `verify-restore.sql` on the restored copy — 11 checks passing and all 30 tables matching the source row for row. The failure path and a non-default collation were tested too. Recorded, with its limits, in docs/18 §13 |
+
+---
+
+## v0.2.3 — 2026-08-26
+
+Microsoft Graph / OneDrive production readiness (D-02). No business rule, schema,
+API contract or UI changed, and the Stock Report module stayed on hold.
+
+| Change | Module | Reason |
+| --- | --- | --- |
+| **Half-filled configuration is refused before any request** | OneDrive | `isConfigured()` checked only `client_id` for the shipped `YOUR_…` placeholder. Filling in the client id while leaving `ONEDRIVE_TENANT_ID=YOUR_TENANT_ID` counted as configured, so the application POSTed to a tenant that cannot exist and reported “could not sign in” — sending an administrator after a credential problem that was really an unfinished `.env`. All four settings are now checked, and a `YOUR_` prefix counts as missing |
+| **A failed sign-in now says why** | OneDrive | The token request returned `null` on any failure and logged nothing. An administrator debugging “could not sign in to Microsoft 365” had nothing at all to work from. The Azure reason — `AADSTS7000215: Invalid client secret provided`, and the like — is now logged, without the secret |
+| **The access token is cached** | OneDrive | Every upload performed a fresh client-credentials sign-in. The token is now held for its lifetime less five minutes, keyed by a hash of tenant and client id, which halves the round trips and keeps clear of Azure's token endpoint limits. A `401` from Graph discards it so the next attempt signs in afresh |
+| Nine Graph error codes distinguished | OneDrive | Only `accessDenied`, `quotaLimitReached` and `itemNotFound` were recognised. Throttling (`activityLimitReached`) reported the generic “rejected by Microsoft 365”, which reads like a permanent failure when the right advice is to wait and retry. Added throttling, expired sign-in, name conflict, malware, resource modified, invalid request and insufficient storage |
+| **21 OneDrive tests** | Tests | The Graph driver had no coverage at all. Graph is faked at the network boundary — no real call, no real credential. Covers missing and placeholder configuration, sign-in failure, successful upload, folder and file-name encoding, four Graph errors, the chunked upload session, token reuse and invalidation, 403 and 401, that generating uploads nothing, re-share refusal, retry after failure, and that no secret or token reaches a response, the database or the log |
+| `ONEDRIVE_*` block added to `.env.sqlsrv.example` | Config | It was in `.env.example` only, so anyone following the SQL Server deployment path had no OneDrive settings to fill in |
+| docs/09 extended | Docs | Added what counts as configured, why admin consent must be an application permission, the common `AADSTS` codes, a twelve-step live verification procedure, and a security table |
+| D-02 restated as **Code Ready / Live Verification Blocked** | Docs | The distinction matters: the code path is built and tested, but no test can prove a tenant exists, consent was granted or a secret is valid |
+
+---
+
+## v0.2.4 — 2026-08-27
+
+Production-readiness cleanup: documentation corrected against the implementation,
+the last uncovered critical workflow given frontend tests, and the frontend split
+at route boundaries. No business rule, schema, API contract or UI changed, and the
+Stock Report module stayed on hold.
+
+| Change | Module | Reason |
+| --- | --- | --- |
+| **BR-13 and BR-14 marked provisional** | Docs | The BRD is where *confirmed* rules live, and both were stated there unqualified — BR-13 even read “Confirmed 2026-08-26”. They are D-07 decisions that were agreed with the business and then returned to hold for final sign-off, so the BRD was presenting an open client decision as settled. The rules are unchanged; only their status is now accurate, with a note that the quantity column and price source are not recorded as rules at all because they have not been confirmed |
+| **19 Final Output / OneDrive frontend tests** | Tests | The explicit-share rule — nothing leaves the application until a user asks — is the single most consequential rule on that screen, and it had no frontend coverage at all. Now covers: rendering the list uploads nothing, opening the confirmation is not consent, dismissing it uploads nothing, an already-uploaded file offers no share, a failed one offers Retry with its reason, permission gating for share and generate, and the 403 / 429 / 502 / network and list-error paths. Verified by mutation: breaking the confirmation gate fails three of them |
+| Backend test count corrected to 91 / 448 | Docs | `docs/11`, `README` and `PROJECT-STATUS` still said 70 tests and 369 assertions after the OneDrive work |
+| Cross-engine claim re-verified rather than re-worded | Docs | `PROJECT-STATUS` claimed the suite passed on all three engines, but the 21 OneDrive tests had only ever run on SQLite. All 91 were then actually run on SQL Server 2022 and MySQL as well — both green — so the claim is now true rather than merely updated |
+| Frontend test count corrected to 86 | Docs | `docs/11`, `README`, `docs/15` and `PROJECT-STATUS` still said 66 |
+| `docs/02` and `README` D-02 wording | Docs | Both said the Graph driver was simply “untested”, which understated it — it is tested against a faked Graph and untested against a live tenant. Now reads **Code Ready / Live Verification Blocked** |
+| `docs/04` cross-engine claim refreshed | Docs | A bolded “all 60 pass” read as current state and was two changes out of date |
+| **Route-level code splitting** | Frontend | Every screen was in the initial bundle, so opening the sign-in page fetched the reports engine, the HHT simulator and the administration screens first. The 19 screens below sign-in are now loaded on demand, taking the initial payload from 832 kB to 628 kB — 248 kB to 199 kB gzipped — across 45 chunks. LoginPage is deliberately not split, being the first thing a signed-out visitor sees. Every route, URL and permission is unchanged, verified by diffing both against the previous file. Closes limitation **L-08** |
+| Failed-chunk boundary, with a test | Frontend | Splitting the routes introduced a failure mode that did not exist before: a screen now arrives over the network and that request can fail, which without a boundary leaves a blank page. A failed chunk shows the standard error state with a reload. One test covers it, verified by mutation — removing the boundary fails it |
+| The permission check stays outside the lazy component | Frontend | `RequirePermission` renders synchronously and returns its refusal without rendering the lazy child, so a user who may not see a screen does not download it either |
+
+---
 ## Template for later entries
 
 ```

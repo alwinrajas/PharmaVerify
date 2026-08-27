@@ -2,7 +2,7 @@
 
 **Project:** Pharmacy Stock Verification Web Application
 **Window:** 2 working days (accelerated delivery)
-**Version:** 0.2.1
+**Version:** 0.2.4
 **Last updated:** 2026-08-26
 
 Statuses: `Not Started` | `In Progress` | `Completed` | `On Hold` | `Blocked` | `Needs Clarification`
@@ -15,12 +15,12 @@ The complete business flow works end to end: master data → stock import →
 HHT submission → audit → verification → variance → adjustment / stock take →
 reports → final output → OneDrive.
 
-- Backend: 70 feature tests, 369 assertions, **all passing on SQL Server 2022,
+- Backend: 91 feature tests, 448 assertions, **all passing on SQL Server 2022,
   MySQL and SQLite**.
-- Frontend: 66 tests passing, type-check clean, production build succeeds.
+- Frontend: 86 tests passing, type-check clean, production build succeeds.
 - **Browser UI validation completed** by the project team on 2026-08-25 — all
   screens and the full end-to-end flow exercised, no issues found.
-- Documentation: `README`, `PROJECT-STATUS` and `docs/01`–`17` complete.
+- Documentation: `README`, `PROJECT-STATUS` and `docs/01`–`18` complete.
 - Every P0 item is complete except the Stock Report import, which is built and
   tested but **on hold** pending client confirmation (D-07).
 - Six items sit with the client. Four block something (D-02, D-03, D-04, D-07);
@@ -106,18 +106,23 @@ reports → final output → OneDrive.
 | Module | Status | Priority | Notes |
 | --- | --- | --- | --- |
 | Demo seed data | Completed | P0 | 3 shops · 22 products · 9 devices · 14 audits · 107 counted lines |
-| Backend feature tests | Completed | P1 | 70 tests, 369 assertions, all passing on all three engines |
+| Backend feature tests | Completed | P1 | 91 tests, 448 assertions, all passing |
 | API rate limiting | Completed | P0 | Login throttled per email+origin, authenticated traffic per user, stock import guarded. 429 uses the standard envelope. Verified live against the file cache store |
 | Documentation accuracy | Completed | P1 | docs/02, 03, 05, 13, 14 reconciled against the code on 2026-08-26 |
-| Frontend automated tests | Completed | P1 | 66 Vitest tests: DataTable, useTableQuery, AuthContext, route guards, and the Adjust, Verify and Stock Take dialogs. Closes limitation L-03 |
+| Frontend automated tests | Completed | P1 | 86 Vitest tests: DataTable, useTableQuery, AuthContext, route guards, the Adjust, Verify and Stock Take dialogs, the Final Output / OneDrive share, and the failed-chunk boundary. Closes limitation L-03 |
 | Frontend type checking | Completed | P1 | Clean |
-| Frontend production build | Completed | P1 | Succeeds; ~830 KB, ~248 KB gzipped |
+| Frontend production build | Completed | P1 | Succeeds. Split at route boundaries: ~628 KB initial payload, ~199 KB gzipped, across 45 chunks. Closes limitation L-08 |
 | API integration walkthrough | Completed | P0 | Full flow exercised over HTTP against the running server |
 | Browser UI verification | Completed | P0 | Manual walkthrough performed by the project team on 2026-08-25. All screens and the full end-to-end flow exercised; no functional, UI, navigation or validation issues found |
 | SQL Server verification (core) | Completed | P0 | Migrations, full seed and all 52 core tests run against SQL Server 2022 on 2026-08-26. Three defects found and fixed |
-| SQL Server verification (with Stock Report) | Completed | P0 | Re-run 2026-08-26 after the filtered-index fix: **all 60 pass on SQL Server, MySQL and SQLite**, with `migrate:fresh` verified on each. The fix was a compatibility change only; no Stock Report business rule was altered |
-| Live OneDrive verification | Blocked | P1 | Needs the Azure app registration — D-02 |
-| Documentation | Completed | P1 | README, PROJECT-STATUS, docs/01–17 |
+| SQL Server verification (with Stock Report) | Completed | P0 | Re-run 2026-08-26 after the filtered-index fix; the fix was a compatibility change only and no Stock Report business rule was altered |
+| Cross-engine verification (current suite) | Completed | P0 | **Re-verified 2026-08-27: all 91 tests / 448 assertions pass on SQL Server 2022, MySQL and SQLite**, `migrate:fresh` run on each beforehand |
+| Backup and recovery procedure | Completed | P0 | Documented and scripted in [docs/18](docs/18-BACKUP-AND-RECOVERY.md) and `database/scripts/`: SQL Server full/differential/log backups, point-in-time restore, and `verify-restore.sql` checking the application's own invariants. RPO 15 min, RTO 2 h |
+| Backup scripts executed | Completed | P0 | Full cycle run against SQL Server 2022 on 2026-08-26 — backup, verify, restore full+differential+log into a separate database, then all 11 checks passing on the restored copy with all 30 tables matching the source row for row. Detail in docs/18 §13 |
+| Production backup scheduling | Blocked | P0 | Separate from the row above: the scripts work, but nothing schedules them. The application runs no backups — it has no scheduler. Scheduling, storage, monitoring and the pre-production drill belong to the client's infrastructure — D-08 |
+| OneDrive / Graph integration | Completed | P1 | Client-credentials flow, token caching, simple and chunked upload, nine Graph error codes, RBAC and the explicit-share rule — 21 tests with Graph faked at the network boundary. Three gaps closed on 2026-08-26: half-filled configuration, silent sign-in failures, and a token fetched on every upload |
+| Live OneDrive verification | Blocked | P1 | **Code ready, live verification blocked.** No Azure app registration has been supplied — every credential is still a `YOUR_…` placeholder, so consent, secret validity and the destination drive are unproven. Procedure ready in docs/09 §9 — D-02 |
+| Documentation | Completed | P1 | README, PROJECT-STATUS, docs/01–18 |
 
 ---
 
@@ -157,12 +162,13 @@ status columns against a repeat.
 
 | # | Item | Blocks | Effort once resolved |
 | --- | --- | --- | --- |
-| D-02 | Azure app registration for OneDrive | A live upload test | One environment change |
+| D-02 | Azure app registration for OneDrive | A live upload test only — the code path is built and tested | One environment change, then the 12-step check in docs/09 §9 |
 | D-03 | The real HHT payload specification | Confirming our contract | Half a day if a mapping is needed |
 | D-04 | Confirmation of report columns | Nothing — cheap to change | An hour per report |
 | **D-07** | **Stock Report business decisions** | **The Stock Report module, currently on hold** | Nil if confirmed as built; see docs/17 §6 for the cost of each alternative |
 | D-05 | OneDrive folder structure | Nothing — a default is in use | Minutes, if a different layout is wanted |
 | D-06 | Production environment | Deployment, not development | Environment-dependent |
+| D-08 | Backup scheduling, storage and the restore drill | Production readiness — the procedure is written, but only the infrastructure can run it | Half a day to schedule the jobs and run the drill |
 
 Detail in [docs/15-ASSUMPTIONS-DEPENDENCIES.md](docs/15-ASSUMPTIONS-DEPENDENCIES.md).
 
@@ -172,6 +178,7 @@ Detail in [docs/15-ASSUMPTIONS-DEPENDENCIES.md](docs/15-ASSUMPTIONS-DEPENDENCIES
 
 1. Confirm the four Stock Report decisions with the client so the module can come off hold (D-07).
 2. Rehearse [docs/14](docs/14-DEMO-GUIDE.md) end to end before the client session.
-2. Switch OneDrive to the Graph driver once credentials arrive (D-02).
-3. Confirm the HHT payload and the report columns with the client (D-03, D-04).
-4. Repeat the SQL Server run against the client instance before go-live, and confirm the delete-behaviour change in docs/15 A-15.
+3. Run the live OneDrive verification once credentials arrive — docs/09 §9 (D-02).
+4. Confirm the HHT payload and the report columns with the client (D-03, D-04).
+5. Repeat the SQL Server run against the client instance before go-live, and confirm the delete-behaviour change in docs/15 A-15.
+6. Schedule the backups and **run the restore drill** before go-live (D-08) — see [docs/18](docs/18-BACKUP-AND-RECOVERY.md) §10.

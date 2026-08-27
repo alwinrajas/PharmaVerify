@@ -71,8 +71,20 @@ User Management, Settings, Dashboard.
 | BR-10 | Completed audits may be edited, but only by users holding the relevant permission, and every edit is written to the audit trail (user, date/time, record, field, old value, new value, action). |
 | BR-11 | The final output is uploaded to OneDrive **only** when the user explicitly clicks **Share to OneDrive**. Nothing uploads automatically. |
 | BR-12 | Authorisation is enforced on the backend. Frontend visibility rules are a convenience only. |
-| BR-13 | The Stock Report import creates products it introduces and refreshes those already known in the Item Master. Nothing is ever removed. Confirmed 2026-08-26; this supersedes the earlier rule that a stock import must not alter the Item Master. |
-| BR-14 | A shop is matched to the Stock Report by its warehouse code (`INVENTLOCATIONID`), held on the shop as its AX location. |
+| BR-13 | The Stock Report import creates products it introduces and refreshes those already known in the Item Master. Nothing is ever removed. Agreed with the business on 2026-08-26 and implemented, but **awaiting final client sign-off** — see the note below. It supersedes the earlier rule that a stock import must not alter the Item Master. |
+| BR-14 | A shop is matched to the Stock Report by its warehouse code (`INVENTLOCATIONID`), held on the shop as its AX location. **Awaiting final client sign-off** — see the note below. |
+
+> **BR-13 and BR-14 are provisional.** They describe how the Stock Report import
+> is built and how it behaves today, but the module is
+> **ON HOLD — awaiting client confirmation (D-07)**. Both were agreed with the
+> business on 2026-08-26 and then returned to hold for final sign-off, so
+> neither should be treated as a settled requirement until that arrives.
+> BR-01 to BR-12 are confirmed and unaffected.
+>
+> Two further Stock Report decisions are not recorded as rules here at all,
+> because they have not been confirmed: which column carries the system quantity,
+> and which price the import should carry. See
+> `15-ASSUMPTIONS-DEPENDENCIES.md` D-07 and `17-STOCK-REPORT-IMPORT.md` §6.
 
 ## 7. Data Requirements
 

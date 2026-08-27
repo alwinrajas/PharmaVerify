@@ -8,8 +8,9 @@ every engine.
 seed and all 52 core feature tests run against a real instance, and produce the
 same data as MySQL. The suite also runs on MySQL and SQLite.
 
-**Re-run on 2026-08-26 with the Stock Report module applied: all 60 pass on
-SQL Server, MySQL and SQLite.**
+**Re-verified on 2026-08-27: all 91 tests and 448 assertions pass on
+SQL Server 2022, MySQL and SQLite**, with `migrate:fresh` run on each engine
+beforehand.
 
 One compatibility defect was found and fixed on the way: `shops.ax_location_id`
 carried a plain unique index on a nullable column. SQL Server and PostgreSQL
