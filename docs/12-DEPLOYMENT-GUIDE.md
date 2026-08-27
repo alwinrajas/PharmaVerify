@@ -149,9 +149,15 @@ chmod -R 775 storage bootstrap/cache      # Linux
 On Windows, grant the application pool identity Modify on `storage` and
 `bootstrap/cache`.
 
-These must be writable: `storage/app/imports`, `storage/app/final-output`,
-`storage/framework/*`, `storage/logs`. The demo OneDrive driver also writes
-`storage/app/onedrive-demo` — not used in production with the `graph` driver.
+These must be writable: `storage/app/private/imports`,
+`storage/app/private/final-output`, `storage/framework/*`, `storage/logs`. The
+demo OneDrive driver also writes `storage/app/private/onedrive-demo` — not used
+in production with the `graph` driver.
+
+**Note the `private` segment.** Laravel's `local` disk is rooted at
+`storage/app/private`, so `storage/app` on its own holds nothing. Backup jobs
+and permission scripts that target `storage/app/final-output` silently do
+nothing — see `18-BACKUP-AND-RECOVERY.md`.
 
 ---
 
@@ -259,15 +265,58 @@ Verify at Settings → Integrations: driver `graph`, credentials configured.
 | 13 | OneDrive credentials in place, or `demo` deliberately chosen |
 | 14 | Outbound access to Microsoft Graph confirmed |
 | 15 | Log rotation configured for `storage/logs` |
-| 16 | Database backup scheduled |
-| 17 | `storage/app/final-output` included in the backup |
-| 18 | HHT device accounts created, one per device |
-| 19 | Sign-in verified for each role |
-| 20 | A test import, submission, adjustment and OneDrive share performed on the live environment |
+| 16 | Database in the **FULL** recovery model — required for point-in-time restore |
+| 17 | Full, differential and log backups scheduled — see §8 |
+| 18 | `storage/app/private/final-output` included in the file backup |
+| 19 | Backup failure raises an alert — a silently failing job is worse than none |
+| 20 | **Restore drill completed** and the measured recovery time recorded |
+| 21 | `.env` copied to a secrets store, held separately from the backups |
+| 22 | HHT device accounts created, one per device |
+| 23 | Sign-in verified for each role |
+| 24 | A test import, submission, adjustment and OneDrive share performed on the live environment |
 
 ---
 
-## 8. Upgrading
+## 8. Backup and recovery
+
+Full procedure, including RPO, RTO, retention and the restore drill:
+**`18-BACKUP-AND-RECOVERY.md`**. The essentials:
+
+**PharmaVerify does not back itself up.** It ships no scheduler, no backup
+agent and no retention policy. Everything here is run by the hosting
+infrastructure.
+
+Three things need backing up:
+
+| What | Where | Recoverable otherwise? |
+| --- | --- | --- |
+| The database | SQL Server | **No** — counts, verifications and adjustments exist nowhere else |
+| Generated final outputs | `storage/app/private/final-output/` | Regenerable from the audit, but not if it was the evidence handed over |
+| `backend/.env` | On the server | **No** — holds `APP_KEY` and every credential |
+
+Set the database to `FULL` recovery, then take daily full backups, six-hourly
+differentials and **log backups every 15 minutes** — that interval is the
+recovery point objective.
+
+| Target | Value |
+| --- | --- |
+| RPO | 15 minutes |
+| RTO | 2 hours |
+
+Scripts are in [`database/scripts/`](../database/scripts/):
+`backup-sqlserver.sql`, `restore-sqlserver.sql`, `verify-restore.sql` and
+`Backup-PharmaVerify.ps1` for Task Scheduler.
+
+After any restore, run `verify-restore.sql`, then `php artisan migrate:status`,
+then the application checks in `18-BACKUP-AND-RECOVERY.md` §5.3. A pending
+migration means the backup predates a deployment.
+
+**Run the restore drill before go-live.** A backup that has never been restored
+is untested, and the measured time is the only RTO worth quoting.
+
+---
+
+## 9. Upgrading
 
 ```bash
 cd backend
@@ -286,7 +335,7 @@ Back up the database before every upgrade that includes migrations.
 
 ---
 
-## 9. Troubleshooting
+## 10. Troubleshooting
 
 | Symptom | Likely cause |
 | --- | --- |
