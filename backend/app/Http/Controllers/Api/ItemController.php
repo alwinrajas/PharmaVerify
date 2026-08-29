@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\ItemRequest;
 use App\Http\Resources\ItemResource;
 use App\Models\Item;
+use App\Services\StockReport\ItemImportService;
 use App\Support\ApiResponse;
 use App\Support\Permissions;
 use Illuminate\Http\JsonResponse;
@@ -32,6 +33,47 @@ class ItemController extends Controller
             ItemResource::collection($paginator->items()),
             null,
             $this->paginationMeta($paginator)
+        );
+    }
+
+    /**
+     * Loads the item master from the business export.
+     *
+     * This is the product list, on its own. It is run to seed the master and
+     * again whenever products are added or their details change; it never
+     * touches stock quantities, which arrive through Stock Import. Products
+     * are created and updated, never removed.
+     */
+    public function import(Request $request, ItemImportService $importer): JsonResponse
+    {
+        $request->user()->can(Permissions::ITEMS_CREATE) || abort(403);
+
+        $validated = $request->validate([
+            'file' => ['required', 'file', 'mimes:xls,xlsx', 'max:102400'],
+            // Off, and the import only adds products it has never seen.
+            'update_existing' => ['nullable', 'boolean'],
+        ], [
+            'file.mimes' => 'Only Excel files with an .xls or .xlsx extension can be imported.',
+            'file.max' => 'The item file must not be larger than 100 MB.',
+        ]);
+
+        set_time_limit(0);
+
+        $summary = $importer->import(
+            $request->file('file'),
+            $request->user(),
+            (bool) ($validated['update_existing'] ?? true)
+        );
+
+        return ApiResponse::success(
+            $summary,
+            sprintf(
+                'Item master imported. %s product(s) created and %s updated.',
+                number_format($summary['created']),
+                number_format($summary['updated'])
+            ),
+            [],
+            201
         );
     }
 

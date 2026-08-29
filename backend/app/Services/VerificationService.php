@@ -20,6 +20,7 @@ class VerificationService
     /** Fields a verifier is allowed to correct on a submitted line. */
     private const EDITABLE_FIELDS = [
         'physical_qty',
+        'loose_qty',
         'batch',
         'expiry_date',
         'shelf_location',
@@ -49,7 +50,7 @@ class VerificationService
 
             $oldComparable = $field === 'expiry_date' ? $oldValue?->toDateString() : $oldValue;
 
-            if ($field === 'physical_qty') {
+            if ($field === 'physical_qty' || $field === 'loose_qty') {
                 $oldComparable = (float) $oldValue;
                 $newValue = (float) $newValue;
             }

@@ -37,6 +37,13 @@ import { apiErrorMessage, get, post } from '@/services/apiClient'
 import { formatDate, formatDateTime, formatNumber, formatQuantity } from '@/utils/format'
 import { PERMISSIONS } from '@/constants/permissions'
 import type { Audit, AuditLine } from '@/types'
+import { semantic } from '@/theme'
+import TrendingDownRoundedIcon from '@mui/icons-material/TrendingDownRounded'
+import TrendingUpRoundedIcon from '@mui/icons-material/TrendingUpRounded'
+import PendingActionsRoundedIcon from '@mui/icons-material/PendingActionsRounded'
+import { KpiStrip } from '@/components/KpiStrip'
+import RuleRoundedIcon from '@mui/icons-material/RuleRounded'
+import CompareArrowsRoundedIcon from '@mui/icons-material/CompareArrowsRounded'
 
 interface LineSummary {
   total_lines: number
@@ -69,6 +76,9 @@ export function AuditDetailPage() {
     queryKey: ['audit', auditId],
     queryFn: async () => (await get<Audit>(`/audits/${auditId}`)).data,
     enabled: Boolean(auditId),
+    // Matches the audit list: a device can submit while this page is open.
+    refetchInterval: 15_000,
+    refetchOnWindowFocus: true,
   })
 
   const linesQuery = useQuery({
@@ -160,7 +170,7 @@ export function AuditDetailPage() {
               {line.description ?? '—'}
             </Typography>
             {line.is_unknown_item ? (
-              <Chip size="small" label="Not in stock file" sx={{ bgcolor: '#FBF0DE', color: '#B26A00' }} />
+              <Chip size="small" label="Not in stock file" sx={{ bgcolor: semantic.warning.bg, color: semantic.warning.fg }} />
             ) : null}
           </Stack>
           <Typography variant="caption">
@@ -200,6 +210,15 @@ export function AuditDetailPage() {
       ),
     },
     {
+      // Counted alongside the whole units, never folded into them.
+      key: 'loose_qty',
+      label: 'Loose',
+      sortable: true,
+      align: 'right',
+      width: 90,
+      render: (line) => (Number(line.loose_qty) === 0 ? '—' : formatQuantity(line.loose_qty)),
+    },
+    {
       key: 'variance_qty',
       label: 'Variance',
       sortable: true,
@@ -229,7 +248,7 @@ export function AuditDetailPage() {
         <Stack direction="row" spacing={0.25} justifyContent="flex-end">
           {can(PERMISSIONS.verificationEdit) ? (
             <Tooltip title="Verify or correct this line">
-              <IconButton size="small" onClick={() => setEditingLine(line)}>
+              <IconButton size="small" aria-label="Verify this line" onClick={() => setEditingLine(line)}>
                 <EditRoundedIcon fontSize="small" />
               </IconButton>
             </Tooltip>
@@ -248,6 +267,7 @@ export function AuditDetailPage() {
               <span>
                 <IconButton
                   size="small"
+                  aria-label="Post an adjustment for this line"
                   disabled={line.adjustment_status === 'adjusted' || Number(line.variance_qty) === 0}
                   onClick={() => setAdjustLines([line])}
                 >
@@ -259,7 +279,7 @@ export function AuditDetailPage() {
 
           {can(PERMISSIONS.stockTakeCreate) && line.is_unknown_item ? (
             <Tooltip title="Record as stock take">
-              <IconButton size="small" onClick={() => setStockTakeLine(line)}>
+              <IconButton size="small" aria-label="Record a stock take for this line" onClick={() => setStockTakeLine(line)}>
                 <PlaylistAddCheckRoundedIcon fontSize="small" />
               </IconButton>
             </Tooltip>
@@ -272,12 +292,12 @@ export function AuditDetailPage() {
   return (
     <Box>
       <PageHeader
-        title={`Audit ${audit.audit_number}`}
+        title={audit.audit_ref}
         description={`${audit.shop_code} — ${audit.shop_name} · Device ${audit.device_code}`}
         crumbs={[
           { label: 'Stock Verification' },
           { label: 'Stock Audit', to: '/audits' },
-          { label: `Audit ${audit.audit_number}` },
+          { label: audit.audit_ref },
         ]}
         actions={
           <>
@@ -310,8 +330,13 @@ export function AuditDetailPage() {
               gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)', xl: 'repeat(7, 1fr)' },
             }}
           >
-            <Detail label="Audit Number" value={String(audit.audit_number)} strong />
+            <Detail label="Audit Reference" value={audit.audit_ref} secondary={`Number ${audit.audit_number}`} strong />
             <Detail label="Shop" value={`${audit.shop_code}`} secondary={audit.shop_name} />
+            <Detail
+              label="Source"
+              value={audit.source === 'excel' ? 'Excel import' : 'HHT'}
+              secondary={audit.source === 'excel' ? 'Uploaded file' : 'Direct submission'}
+            />
             <Detail label="Device" value={audit.device_code ?? '—'} />
             <Detail label="Counted By" value={audit.hht_user ?? '—'} />
             <Detail label="Audit Date" value={formatDate(audit.audit_date)} />
@@ -333,25 +358,41 @@ export function AuditDetailPage() {
 
       {/* Line summary */}
       {summary ? (
-        <Box
-          sx={{
-            display: 'grid',
-            gap: 2,
-            gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', lg: 'repeat(6, 1fr)' },
-            mb: 2.5,
-          }}
-        >
-          <MiniStat label="Lines counted" value={formatNumber(summary.total_lines)} />
-          <MiniStat label="Short" value={formatNumber(summary.negative_variance)} tone="error" />
-          <MiniStat label="Excess" value={formatNumber(summary.positive_variance)} tone="success" />
-          <MiniStat label="Matched" value={formatNumber(summary.zero_variance)} />
-          <MiniStat
-            label="Pending verification"
-            value={formatNumber(summary.pending_verification)}
-            tone={summary.pending_verification > 0 ? 'warning' : undefined}
-          />
-          <MiniStat label="Net variance" value={formatQuantity(summary.net_variance)} tone={summary.net_variance < 0 ? 'error' : summary.net_variance > 0 ? 'success' : undefined} />
-        </Box>
+        <KpiStrip
+          items={[
+            { label: 'Lines counted', value: formatNumber(summary.total_lines), icon: RuleRoundedIcon },
+            {
+              label: 'Short',
+              value: formatNumber(summary.negative_variance),
+              icon: TrendingDownRoundedIcon,
+              tone: 'short',
+            },
+            {
+              label: 'Excess',
+              value: formatNumber(summary.positive_variance),
+              icon: TrendingUpRoundedIcon,
+              tone: 'excess',
+            },
+            {
+              label: 'Matched',
+              value: formatNumber(summary.zero_variance),
+              icon: DoneAllRoundedIcon,
+              tone: 'matched',
+            },
+            {
+              label: 'Pending verification',
+              value: formatNumber(summary.pending_verification),
+              icon: PendingActionsRoundedIcon,
+              tone: summary.pending_verification > 0 ? 'warning' : 'default',
+            },
+            {
+              label: 'Net variance',
+              value: formatQuantity(summary.net_variance),
+              icon: CompareArrowsRoundedIcon,
+              tone: summary.net_variance < 0 ? 'short' : summary.net_variance > 0 ? 'excess' : 'matched',
+            },
+          ]}
+        />
       ) : null}
 
       {summary && summary.unknown_items > 0 ? (
@@ -362,6 +403,11 @@ export function AuditDetailPage() {
       ) : null}
 
       <DataTable
+        focusable
+        focusTitle="Audit Lines"
+        density="compact"
+        columnToggle
+        freezeFirstColumn
         columns={columns}
         rows={lines}
         rowKey={(line) => line.id}
@@ -507,29 +553,5 @@ function Detail({
         </Typography>
       ) : null}
     </Box>
-  )
-}
-
-function MiniStat({
-  label,
-  value,
-  tone,
-}: {
-  label: string
-  value: string
-  tone?: 'success' | 'error' | 'warning'
-}) {
-  const colour =
-    tone === 'success' ? 'success.main' : tone === 'error' ? 'error.main' : tone === 'warning' ? 'warning.main' : 'text.primary'
-
-  return (
-    <Card>
-      <CardContent sx={{ p: 1.75, '&:last-child': { pb: 1.75 } }}>
-        <Typography variant="caption" sx={{ display: 'block' }}>
-          {label}
-        </Typography>
-        <Typography sx={{ fontSize: '1.25rem', fontWeight: 700, color: colour }}>{value}</Typography>
-      </CardContent>
-    </Card>
   )
 }

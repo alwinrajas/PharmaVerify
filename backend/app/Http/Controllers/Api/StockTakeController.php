@@ -27,17 +27,18 @@ class StockTakeController extends Controller
     {
         $request->user()->can(Permissions::STOCKTAKE_VIEW) || abort(403);
 
-        $query = StockTake::query()->with(['shop', 'audit', 'takenBy'])->visibleTo($request->user());
+        $query = StockTake::query()->with(['shop', 'audit', 'session', 'takenBy'])->visibleTo($request->user());
 
         $this->applySearch($query, $request, ['barcode', 'product_code', 'description', 'batch', 'shelf_location']);
         $this->applyEquals($query, $request, [
             'shop_id' => 'shop_id',
             'audit_id' => 'audit_id',
+            'stock_take_session_id' => 'stock_take_session_id',
             'status' => 'status',
             'barcode' => 'barcode',
         ]);
         $this->applyDateRange($query, $request, 'taken_at');
-        $this->applySort($query, $request, ['taken_at', 'description', 'physical_qty', 'status', 'id'], 'taken_at');
+        $this->applySort($query, $request, ['taken_at', 'description', 'physical_qty', 'loose_qty', 'status', 'id'], 'taken_at');
 
         $paginator = $this->paginate($query, $request);
 
@@ -54,12 +55,14 @@ class StockTakeController extends Controller
 
         $validated = $request->validate([
             'shop_id' => ['required', 'integer', 'exists:shops,id'],
+            'stock_take_session_id' => ['nullable', 'integer', 'exists:stock_take_sessions,id'],
             'audit_id' => ['nullable', 'integer', 'exists:audits,id'],
             'audit_line_id' => ['nullable', 'integer', 'exists:audit_lines,id'],
             'barcode' => ['nullable', 'string', 'max:60'],
             'product_code' => ['nullable', 'string', 'max:60'],
             'description' => ['required', 'string', 'max:300'],
             'physical_qty' => ['required', 'numeric', 'min:0', 'max:99999999'],
+            'loose_qty' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
             'uom' => ['nullable', 'string', 'max:20'],
             'batch' => ['nullable', 'string', 'max:60'],
             'expiry_date' => ['nullable', 'date'],
@@ -67,6 +70,7 @@ class StockTakeController extends Controller
             'remarks' => ['nullable', 'string', 'max:500'],
         ], [
             'physical_qty.min' => 'A physical quantity cannot be negative.',
+            'loose_qty.min' => 'A loose quantity cannot be negative.',
             'description.required' => 'A product description is required so the item can be identified later.',
         ]);
 
@@ -74,6 +78,7 @@ class StockTakeController extends Controller
 
         $stockTake = StockTake::create(array_merge($validated, [
             'batch' => $validated['batch'] ?? '',
+            'loose_qty' => $validated['loose_qty'] ?? 0,
             'uom' => $validated['uom'] ?? 'EA',
             'status' => 'recorded',
             'taken_by' => $request->user()->id,
@@ -97,11 +102,15 @@ class StockTakeController extends Controller
                 'barcode' => $stockTake->barcode,
                 'description' => $stockTake->description,
                 'physical_qty' => (float) $stockTake->physical_qty,
+                'loose_qty' => (float) $stockTake->loose_qty,
+                'stock_take_session_id' => $stockTake->stock_take_session_id,
             ])
             ->log('Stock take recorded');
 
+        $stockTake->session?->refreshItemCount();
+
         return ApiResponse::success(
-            new StockTakeResource($stockTake->load(['shop', 'takenBy'])),
+            new StockTakeResource($stockTake->load(['shop', 'session', 'takenBy'])),
             'Stock take recorded successfully. The item master has not been changed.',
             [],
             201
@@ -116,6 +125,7 @@ class StockTakeController extends Controller
         $validated = $request->validate([
             'description' => ['sometimes', 'string', 'max:300'],
             'physical_qty' => ['sometimes', 'numeric', 'min:0', 'max:99999999'],
+            'loose_qty' => ['sometimes', 'numeric', 'min:0', 'max:99999999'],
             'uom' => ['sometimes', 'nullable', 'string', 'max:20'],
             'batch' => ['sometimes', 'nullable', 'string', 'max:60'],
             'expiry_date' => ['sometimes', 'nullable', 'date'],

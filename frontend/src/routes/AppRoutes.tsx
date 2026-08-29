@@ -26,6 +26,7 @@ const StockImportPage = lazy(async () => ({ default: (await import('@/features/s
 const ItemStockPage = lazy(async () => ({ default: (await import('@/features/stock/ItemStockPage')).ItemStockPage }))
 const HhtSubmissionsPage = lazy(async () => ({ default: (await import('@/features/hht/HhtSubmissionsPage')).HhtSubmissionsPage }))
 const HhtSimulatorPage = lazy(async () => ({ default: (await import('@/features/hht/HhtSimulatorPage')).HhtSimulatorPage }))
+const HhtImportPage = lazy(async () => ({ default: (await import('@/features/hht/HhtImportPage')).HhtImportPage }))
 const AuditsPage = lazy(async () => ({ default: (await import('@/features/audits/AuditsPage')).AuditsPage }))
 const AuditDetailPage = lazy(async () => ({ default: (await import('@/features/audits/AuditDetailPage')).AuditDetailPage }))
 const VerificationPage = lazy(async () => ({ default: (await import('@/features/verification/VerificationPage')).VerificationPage }))
@@ -143,6 +144,7 @@ export function AppRoutes() {
 
         <Route path="hht" element={<Screen permission="hht.view"><HhtSubmissionsPage /></Screen>} />
         <Route path="hht/simulator" element={<Screen permission="hht.view"><HhtSimulatorPage /></Screen>} />
+        <Route path="hht/import" element={<Screen permission="hht.import"><HhtImportPage /></Screen>} />
 
         <Route path="audits" element={<Screen permission="audits.view"><AuditsPage /></Screen>} />
         <Route path="audits/:auditId" element={<Screen permission="audits.view"><AuditDetailPage /></Screen>} />

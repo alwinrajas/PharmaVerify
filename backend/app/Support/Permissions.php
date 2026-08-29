@@ -31,6 +31,9 @@ final class Permissions
     public const STOCK_VIEW = 'stock.view';
     public const STOCK_IMPORT = 'stock.import';
 
+    /** Reading a handheld's Excel export into an audit or a stock take. */
+    public const HHT_IMPORT = 'hht.import';
+
     // Verification flow
     public const HHT_VIEW = 'hht.view';
     public const HHT_SUBMIT = 'hht.submit';
@@ -67,7 +70,7 @@ final class Permissions
             'Items' => [self::ITEMS_VIEW, self::ITEMS_CREATE, self::ITEMS_EDIT, self::ITEMS_DELETE],
             'Devices' => [self::DEVICES_VIEW, self::DEVICES_CREATE, self::DEVICES_EDIT, self::DEVICES_DELETE],
             'Stock' => [self::STOCK_VIEW, self::STOCK_IMPORT],
-            'HHT' => [self::HHT_VIEW, self::HHT_SUBMIT],
+            'HHT' => [self::HHT_VIEW, self::HHT_SUBMIT, self::HHT_IMPORT],
             'Audit' => [self::AUDITS_VIEW],
             'Verification' => [self::VERIFICATION_EDIT],
             'Variance' => [self::VARIANCE_VIEW],

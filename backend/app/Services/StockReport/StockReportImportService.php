@@ -54,7 +54,8 @@ class StockReportImportService
 
         if ($shops === []) {
             throw new BusinessRuleException(
-                'No shop has been linked to a warehouse code yet. Set the AX location on each shop before importing a Stock Report.'
+                'There are no shops to import against yet. Create the shops first — a shop coded P001 will match the '
+                .'report rows for warehouse P001 automatically.'
             );
         }
 
@@ -74,7 +75,118 @@ class StockReportImportService
     }
 
     /**
-     * Shops keyed by their warehouse code.
+     * Reads and judges the report without writing anything.
+     *
+     * Replacing a shop's stock cannot be undone from the screen, so the user is
+     * shown what the file contains and what it would displace before being
+     * asked to confirm. This runs exactly the same reading and validation as
+     * the import itself; only the transaction is missing.
+     *
+     * @return array<string, mixed>
+     */
+    public function preview(UploadedFile $file, ?Shop $onlyShop = null): array
+    {
+        $path = $file->getRealPath();
+
+        $sheets = $this->reader->assertStructure($path);
+        $shops = $this->shopsByLocation();
+
+        if ($shops === []) {
+            throw new BusinessRuleException(
+                'There are no shops to import against yet. Create the shops first — a shop coded P001 will match the '
+                .'report rows for warehouse P001 automatically.'
+            );
+        }
+
+        [$rows, $errors, $needed] = $this->readStockSheet($path, $sheets[StockReportReader::SHEET_STOCK], $shops, $onlyShop);
+        $products = $this->readItemMaster($path, $sheets[StockReportReader::SHEET_ITEMS], $needed['items']);
+
+        // Every warehouse code the file mentioned that no shop answers to. The
+        // rows are counted rather than dropped, so nothing disappears quietly.
+        $unmatched = [];
+
+        foreach ($errors as $error) {
+            if ($error['column_name'] === 'INVENTLOCATIONID' && $error['column_value'] !== null) {
+                $code = $error['column_value'];
+                $unmatched[$code] = ($unmatched[$code] ?? 0) + 1;
+            }
+        }
+
+        $shopsById = [];
+
+        foreach ($shops as $shop) {
+            $shopsById[$shop->id] = $shop;
+        }
+
+        $existingCounts = ItemStock::selectRaw('shop_id, count(*) as total')
+            ->whereIn('shop_id', array_unique(array_column($rows, 'shop_id')))
+            ->groupBy('shop_id')
+            ->pluck('total', 'shop_id');
+
+        $perShop = [];
+
+        foreach ($rows as $row) {
+            $perShop[$row['shop_id']] = ($perShop[$row['shop_id']] ?? 0) + 1;
+        }
+
+        $shopImpact = [];
+
+        foreach ($perShop as $shopId => $incoming) {
+            $shop = $shopsById[$shopId] ?? null;
+
+            $shopImpact[] = [
+                'shop_id' => $shopId,
+                'shop_code' => $shop?->shop_code,
+                'shop_name' => $shop?->shop_name,
+                'ax_location_id' => $shop?->ax_location_id,
+                'existing_records' => (int) ($existingCounts[$shopId] ?? 0),
+                'incoming_records' => $incoming,
+                'action' => 'replace',
+            ];
+        }
+
+        $missingGtin = count(array_filter($products, fn ($p) => ($p['gtin'] ?? null) === null));
+        $duplicates = $this->duplicateGtins($products);
+
+        return [
+            'file_name' => $file->getClientOriginalName(),
+            'total_rows' => count($rows) + count($errors),
+            'valid_rows' => count($rows),
+            'invalid_rows' => count($errors),
+            'locations_detected' => count($perShop) + count($unmatched),
+            'shops' => $shopImpact,
+            'unmatched_locations' => array_map(
+                fn ($code, $count) => ['ax_location_id' => $code, 'rows' => $count],
+                array_keys($unmatched),
+                array_values($unmatched)
+            ),
+            'items_referenced' => count($needed['items']),
+            'items_matched' => count($products),
+            'items_unmatched' => count($needed['items']) - count($products),
+            'gtin_missing' => $missingGtin,
+            'gtin_duplicates' => array_map(
+                fn ($gtin, $codes) => ['gtin' => $gtin, 'product_codes' => $codes],
+                array_keys($duplicates),
+                array_values($duplicates)
+            ),
+            // The first few reasons, so the screen can show why rows failed
+            // without shipping the whole list to the browser.
+            'sample_errors' => array_slice($errors, 0, 20),
+        ];
+    }
+
+    /**
+     * Shops keyed by every code a report might name them with.
+     *
+     * INVENTLOCATIONID *is* the shop identifier, so it is matched against what
+     * the shop is already called before anything else. `ax_location_id` is the
+     * explicit override for the case where the warehouse code genuinely differs
+     * from the shop code, and it wins where it is set; `shop_code` covers the
+     * ordinary case, where a shop coded P001 is the shop the report calls P001
+     * and no one should have to say so twice.
+     *
+     * Nothing is created here. A code no shop answers to is reported, never
+     * turned into a new branch as a side effect of an import.
      *
      * @return array<string, Shop>
      */
@@ -82,8 +194,21 @@ class StockReportImportService
     {
         $shops = [];
 
+        foreach (Shop::all() as $shop) {
+            $code = strtoupper(trim((string) $shop->shop_code));
+
+            if ($code !== '') {
+                $shops[$code] = $shop;
+            }
+        }
+
+        // Applied second so an explicit mapping overrides the shop code.
         foreach (Shop::whereNotNull('ax_location_id')->get() as $shop) {
-            $shops[strtoupper(trim((string) $shop->ax_location_id))] = $shop;
+            $location = strtoupper(trim((string) $shop->ax_location_id));
+
+            if ($location !== '') {
+                $shops[$location] = $shop;
+            }
         }
 
         return $shops;
@@ -105,8 +230,14 @@ class StockReportImportService
         $itemAt = $at('itemid');
         $batchAt = $at('inventbatchid');
         $expiryAt = $at('expdate');
-        $qtyAt = $at('lowerqty');
+        // PENDING (Q5): which column is the ERP system quantity is not yet
+        // confirmed, so it is named in config rather than written in here. The
+        // answer, when it comes, is a one-value change — see config/stockreport.php.
+        $systemQtyColumn = (string) config('stockreport.system_quantity_column', 'lowerqty');
+        $qtyAt = $at($systemQtyColumn) ?? $at('lowerqty');
+        $wholeAt = $at('higherqty');
         $costAt = $at('costperinvunit');
+        $totalCostAt = $at('totalcost');
 
         $columns = StockReportReader::columnLetters(max(array_values($headings)) + 1);
 
@@ -117,7 +248,7 @@ class StockReportImportService
 
         $this->reader->eachRowChunked($path, $sheetName, $columns, function (array $cells, int $rowNumber) use (
             &$rows, &$errors, &$seen, &$needed, $shops, $onlyShop,
-            $locationAt, $itemAt, $batchAt, $expiryAt, $qtyAt, $costAt
+            $locationAt, $itemAt, $batchAt, $expiryAt, $qtyAt, $wholeAt, $costAt, $totalCostAt
         ) {
             $location = strtoupper($this->text($cells[$locationAt] ?? null));
             $itemId = $this->text($cells[$itemAt] ?? null);
@@ -195,13 +326,30 @@ class StockReportImportService
 
             $cost = $costAt !== null && is_numeric($cells[$costAt] ?? null) ? (float) $cells[$costAt] : null;
 
+            // The ERP's own whole-pack figure. Fractional values are expected
+            // and correct — 0.04 of a pack is a third of a strip, not a fault
+            // — so it is never rounded to a whole number. Where the column is
+            // absent it is derived later from LOWERQTY / FACTOR.
+            $rawWhole = $wholeAt !== null ? ($cells[$wholeAt] ?? null) : null;
+            $wholeQty = is_numeric($rawWhole) ? round((float) $rawWhole, 4) : null;
+
+            // Stored exactly as supplied. The ERP total does not reconcile
+            // with quantity x unit cost across the whole report, so deriving it
+            // would silently contradict the source system.
+            $rawTotalCost = $totalCostAt !== null ? ($cells[$totalCostAt] ?? null) : null;
+            $totalCost = is_numeric($rawTotalCost) ? round((float) $rawTotalCost, 4) : null;
+
             $rows[] = [
                 'shop_id' => $shop->id,
                 'product_code' => $itemId,
                 'batch' => $batch,
+                // PENDING (Q5). The column this reads is named in
+                // config/stockreport.php and defaults to LOWERQTY, unchanged.
                 'system_qty' => round((float) $rawQty, 3),
+                'whole_qty' => $wholeQty,
                 'expiry_date' => $expiry,
                 'cost' => $cost,
+                'total_cost' => $totalCost,
             ];
         });
 
@@ -246,8 +394,15 @@ class StockReportImportService
     /**
      * Product details for the items the stock sheet referenced.
      *
+     * Price comes from SALESPRICE and nothing else. The business has confirmed
+     * that the price a stock line carries is the retail selling price, so the
+     * old fallback to COSTPRICE is gone — a product with no selling price now
+     * reads as zero rather than quietly showing a cost figure as if it were a
+     * price. The cost columns remain available for the cost total, which is a
+     * separate figure.
+     *
      * @param  array<string, true>  $wanted
-     * @return array<string, array{description: string, uom: string, price: float, barcode: ?string}>
+     * @return array<string, array{description: string, uom: string, price: float, factor: ?float, gtin: ?string}>
      */
     private function readItemMaster(string $path, string $sheetName, array $wanted): array
     {
@@ -255,16 +410,17 @@ class StockReportImportService
         $itemAt = $headings['itemid'] ?? 0;
         $nameAt = $headings['itemname'] ?? 1;
         $unitAt = $headings['invunit'] ?? null;
-        $priceAt = $headings['salesprice'] ?? $headings['costprice'] ?? null;
+        $priceAt = $headings['salesprice'] ?? null;
+        $factorAt = $headings['factor'] ?? null;
         $gtinAt = $headings['globaltradeitemnumber'] ?? null;
 
-        $positions = array_filter([$itemAt, $nameAt, $unitAt, $priceAt, $gtinAt], fn ($p) => $p !== null);
+        $positions = array_filter([$itemAt, $nameAt, $unitAt, $priceAt, $factorAt, $gtinAt], fn ($p) => $p !== null);
         $columns = StockReportReader::columnLetters(max($positions) + 1);
 
         $found = [];
 
         $this->reader->eachRowChunked($path, $sheetName, $columns, function (array $cells) use (
-            &$found, $wanted, $itemAt, $nameAt, $unitAt, $priceAt, $gtinAt
+            &$found, $wanted, $itemAt, $nameAt, $unitAt, $priceAt, $factorAt, $gtinAt
         ) {
             $id = $this->text($cells[$itemAt] ?? null);
 
@@ -273,17 +429,48 @@ class StockReportImportService
             }
 
             $price = $priceAt !== null ? ($cells[$priceAt] ?? null) : null;
+            $factor = $factorAt !== null ? ($cells[$factorAt] ?? null) : null;
             $gtin = $gtinAt !== null ? $this->text($cells[$gtinAt] ?? null) : '';
 
             $found[$id] = [
                 'description' => mb_substr($this->text($cells[$nameAt] ?? null) ?: $id, 0, 300),
                 'uom' => mb_substr($unitAt !== null ? ($this->text($cells[$unitAt] ?? null) ?: 'EA') : 'EA', 0, 20),
                 'price' => is_numeric($price) ? round((float) $price, 4) : 0.0,
-                'barcode' => $gtin !== '' ? mb_substr($gtin, 0, 60) : null,
+                // A factor of zero would make the whole-quantity division
+                // meaningless, so it is treated as absent rather than used.
+                'factor' => is_numeric($factor) && (float) $factor != 0.0 ? round((float) $factor, 4) : null,
+                'gtin' => $gtin !== '' ? mb_substr($gtin, 0, 20) : null,
             ];
         });
 
         return $found;
+    }
+
+    /**
+     * GTINs that more than one product answers to.
+     *
+     * The GTIN is what the handheld scans, so a code shared by two products
+     * cannot be resolved to a single stock line. Rather than invent a rule for
+     * picking a winner, the affected products are reported as a data issue and
+     * the import continues — the stock is still correct, but the ambiguity is
+     * on the record.
+     *
+     * @param  array<string, array<string, mixed>>  $products
+     * @return array<string, array<int, string>>  GTIN => product codes
+     */
+    private function duplicateGtins(array $products): array
+    {
+        $byGtin = [];
+
+        foreach ($products as $code => $product) {
+            $gtin = $product['gtin'] ?? null;
+
+            if ($gtin !== null && $gtin !== '') {
+                $byGtin[$gtin][] = $code;
+            }
+        }
+
+        return array_filter($byGtin, fn (array $codes) => count($codes) > 1);
     }
 
     /**
@@ -311,7 +498,7 @@ class StockReportImportService
         return DB::transaction(function () use (
             $file, $storedPath, $user, $rows, $errors, $barcodes, $products, $shopIds, $now
         ) {
-            $syncedItems = $this->syncItemMaster($products, $barcodes, $user, $now);
+            $createdItems = $this->syncItemMaster($products, $barcodes, $user, $now);
             $itemIds = Item::whereIn('product_code', array_keys($products))->pluck('id', 'product_code');
 
             $imports = [];
@@ -344,20 +531,27 @@ class StockReportImportService
 
                 foreach ($shopRows as $row) {
                     $product = $products[$row['product_code']] ?? null;
-                    $barcode = $barcodes[$row['product_code'].'|'.$row['batch']]
-                        ?? $product['barcode']
-                        ?? null;
+                    $factor = $product['factor'] ?? null;
 
                     $buffer[] = [
                         'shop_id' => $shopId,
                         'item_id' => $itemIds[$row['product_code']] ?? null,
                         'stock_import_id' => $import->id,
                         'product_code' => $row['product_code'],
-                        'barcode' => $barcode,
+                        // Two separate identifier systems, kept apart. The
+                        // 7-digit internal code stays on `barcode`; the GTIN
+                        // the handheld scans has its own column and is never
+                        // substituted by the other.
+                        'barcode' => $barcodes[$row['product_code'].'|'.$row['batch']] ?? null,
+                        'gtin' => $product['gtin'] ?? null,
                         'description' => $product['description'] ?? $row['product_code'],
                         'system_qty' => $row['system_qty'],
+                        'whole_qty' => $this->wholeQuantity($row, $factor),
+                        'factor' => $factor,
                         'uom' => $product['uom'] ?? 'EA',
-                        'price' => (float) ($product['price'] ?? $row['cost'] ?? 0),
+                        // Retail selling price, from SALESPRICE only.
+                        'price' => (float) ($product['price'] ?? 0),
+                        'total_cost' => $row['total_cost'],
                         'batch' => $row['batch'],
                         'expiry_date' => $row['expiry_date'],
                         'shelf_location' => null,
@@ -420,9 +614,11 @@ class StockReportImportService
                     'imported' => count($rows),
                     'failed' => count($errors),
                     'replaced' => $replacedTotal,
-                    'items_synced' => $syncedItems,
+                    'items_created' => $createdItems,
                 ])
                 ->log('Stock Report imported and existing stock replaced');
+
+            $duplicates = $this->duplicateGtins($products);
 
             return [
                 'imports' => array_map(fn (StockImport $i) => $i->fresh(['shop', 'importedBy']), $imports),
@@ -432,22 +628,56 @@ class StockReportImportService
                     'imported' => count($rows),
                     'failed' => count($errors),
                     'replaced' => $replacedTotal,
-                    'items_synced' => $syncedItems,
+                    'items_created' => $createdItems,
                     'barcodes_matched' => count($barcodes),
+                    // Scan-identifier coverage. A product with no GTIN cannot
+                    // be scanned, and a GTIN shared by two products cannot be
+                    // resolved to one line — both are reported rather than
+                    // resolved by a rule nobody has agreed.
+                    'gtin_missing' => count(array_filter($products, fn ($p) => ($p['gtin'] ?? null) === null)),
+                    'gtin_duplicates' => count($duplicates),
                 ],
             ];
         });
     }
 
     /**
-     * Brings the item master in line with the report.
+     * Whole quantity for a stock row.
      *
-     * Confirmed with the business: a Stock Report may create products it
-     * introduces and refresh the details of ones already known, so the product
-     * list tracks the source system. Nothing is ever removed.
+     * The ERP's own HIGHERQTY is used where the report supplies it. Where it
+     * does not, the confirmed relationship `HIGHERQTY = LOWERQTY / FACTOR`
+     * fills the gap. Nothing is rounded to a whole number in either path: a
+     * fraction of a pack is a real holding, not a rounding error.
+     *
+     * @param  array<string, mixed>  $row
+     */
+    private function wholeQuantity(array $row, ?float $factor): ?float
+    {
+        if ($row['whole_qty'] !== null) {
+            return $row['whole_qty'];
+        }
+
+        if ($factor === null || $factor == 0.0) {
+            return null;
+        }
+
+        return round(((float) $row['system_qty']) / $factor, 4);
+    }
+
+    /**
+     * Creates the products a report introduces, without touching the ones
+     * already on file.
+     *
+     * The business keeps the item master and the stock snapshot as two separate
+     * operations: Item Import maintains the product list, Stock Import loads
+     * quantities. A stock row still needs a product to point at, so a code that
+     * has never been seen is created here — but a product that already exists
+     * is left exactly as Item Import left it. Nothing is ever removed, and
+     * nothing existing is overwritten.
      *
      * @param  array<string, array<string, mixed>>  $products
      * @param  array<string, string>  $barcodes
+     * @return int  how many products this import had to create
      */
     private function syncItemMaster(array $products, array $barcodes, User $user, Carbon $now): int
     {
@@ -468,10 +698,21 @@ class StockReportImportService
 
         $payload = [];
 
-        foreach ($products as $code => $product) {
+        // Only the codes that are genuinely new. Everything already on file
+        // belongs to Item Import and is left alone.
+        $existing = Item::whereIn('product_code', array_keys($products))
+            ->pluck('product_code')
+            ->all();
+
+        $missing = array_diff(array_keys($products), $existing);
+
+        foreach ($missing as $code) {
+            $product = $products[$code];
+
             $payload[] = [
                 'product_code' => $code,
-                'barcode' => $barcodes === [] ? $product['barcode'] : ($barcodeByItem[$code] ?? $product['barcode']),
+                'barcode' => $barcodeByItem[$code] ?? null,
+                'gtin' => $product['gtin'],
                 'description' => $product['description'],
                 'uom' => $product['uom'],
                 'price' => (float) $product['price'],
@@ -483,19 +724,15 @@ class StockReportImportService
             ];
         }
 
-        $synced = 0;
+        $created = 0;
 
         // One statement per chunk rather than a query per product.
         foreach (array_chunk($payload, self::INSERT_CHUNK) as $chunk) {
-            Item::upsert(
-                $chunk,
-                ['product_code'],
-                ['barcode', 'description', 'uom', 'price', 'updated_by', 'updated_at']
-            );
-            $synced += count($chunk);
+            Item::insert($chunk);
+            $created += count($chunk);
         }
 
-        return $synced;
+        return $created;
     }
 
     /**

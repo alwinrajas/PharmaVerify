@@ -1,19 +1,23 @@
 import { Alert, Box, Button, Stack, Typography } from '@mui/material'
 import PhonelinkSetupRoundedIcon from '@mui/icons-material/PhonelinkSetupRounded'
 import OpenInNewRoundedIcon from '@mui/icons-material/OpenInNewRounded'
+import UploadFileRoundedIcon from '@mui/icons-material/UploadFileRounded'
 import { useQuery } from '@tanstack/react-query'
 import { Link as RouterLink, useNavigate } from 'react-router-dom'
 import { DataTable, type DataTableColumn } from '@/components/DataTable'
 import { DateFilter, FilterBar, SearchBar, SelectFilter } from '@/components/filters'
 import { PageHeader } from '@/components/PageHeader'
 import { StatusBadge } from '@/components/StatusBadge'
+import { useAuth } from '@/features/auth/AuthContext'
 import { useDeviceOptions, useShopOptions } from '@/hooks/useOptions'
 import { useTableQuery } from '@/hooks/useTableQuery'
 import { apiErrorMessage, get } from '@/services/apiClient'
 import { formatDate, formatDateTime, formatNumber } from '@/utils/format'
+import { PERMISSIONS } from '@/constants/permissions'
 import type { HhtSubmission } from '@/types'
 
 export function HhtSubmissionsPage() {
+  const { can } = useAuth()
   const navigate = useNavigate()
   const table = useTableQuery({ sortBy: 'received_at', sortDir: 'desc' })
   const { data: shops } = useShopOptions()
@@ -133,14 +137,26 @@ export function HhtSubmissionsPage() {
         description="Completed counts received from the handheld devices. Each submission arrives once, after the count is finished on the device."
         crumbs={[{ label: 'Stock Verification' }, { label: 'HHT Submissions' }]}
         actions={
-          <Button
-            component={RouterLink}
-            to="/hht/simulator"
-            variant="contained"
-            startIcon={<PhonelinkSetupRoundedIcon />}
-          >
-            HHT Simulator
-          </Button>
+          <Stack direction="row" spacing={1.5}>
+            {can(PERMISSIONS.hhtImport) ? (
+              <Button
+                component={RouterLink}
+                to="/hht/import"
+                variant="outlined"
+                startIcon={<UploadFileRoundedIcon />}
+              >
+                Import HHT Export
+              </Button>
+            ) : null}
+            <Button
+              component={RouterLink}
+              to="/hht/simulator"
+              variant="contained"
+              startIcon={<PhonelinkSetupRoundedIcon />}
+            >
+              HHT Simulator
+            </Button>
+          </Stack>
         }
       />
 
@@ -150,6 +166,10 @@ export function HhtSubmissionsPage() {
       </Alert>
 
       <DataTable
+        focusable
+        focusTitle="HHT Submissions"
+        density="compact"
+        columnToggle
         columns={columns}
         rows={data?.data ?? []}
         rowKey={(row) => row.id}

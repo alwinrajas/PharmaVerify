@@ -66,7 +66,7 @@ pharmacy-stock-verification/
 │   │   └── Exceptions/      API error translation
 │   ├── database/            migrations · seeders
 │   ├── routes/api.php       Every endpoint
-│   └── tests/Feature/       91 feature tests
+│   └── tests/Feature/       121 feature tests
 │
 ├── frontend/                React SPA
 │   └── src/
@@ -220,7 +220,7 @@ cd backend
 php artisan test
 ```
 
-91 feature tests, 448 assertions, covering the rules most likely to regress:
+121 feature tests, 558 assertions, covering the rules most likely to regress:
 stock import replacement and its atomicity, HHT submission idempotency, variance
 calculation, immediate adjustment posting, stock take not touching the item
 master, RBAC and shop scoping, and the shape of error responses.

@@ -47,11 +47,18 @@ class StockAdjustmentService
 
             $oldQty = (float) $stock->system_qty;
             $physicalQty = (float) $line->physical_qty;
-            $variance = AuditLine::calculateVariance($physicalQty, $oldQty);
+            $looseQty = (float) $line->loose_qty;
 
-            // The count is the truth: system stock becomes the physical count.
+            // What the shelf actually holds: whole units plus loose. Posting
+            // the physical figure alone would leave a residual variance equal
+            // to the loose quantity, so the line below is what makes the
+            // resulting variance genuinely zero rather than merely asserted.
+            $countedQty = AuditLine::countedTotal($physicalQty, $looseQty);
+            $variance = AuditLine::calculateVariance($physicalQty, $looseQty, $oldQty);
+
+            // The count is the truth: system stock becomes what was counted.
             $stock->update([
-                'system_qty' => $physicalQty,
+                'system_qty' => $countedQty,
                 'verification_status' => 'adjusted',
             ]);
 
@@ -67,14 +74,14 @@ class StockAdjustmentService
                 'old_system_qty' => $oldQty,
                 'physical_qty' => $physicalQty,
                 'variance_qty' => $variance,
-                'new_system_qty' => $physicalQty,
+                'new_system_qty' => $countedQty,
                 'reason' => $reason,
                 'adjusted_by' => $user->id,
                 'adjusted_at' => now(),
             ]);
 
             $line->forceFill([
-                'system_qty' => $physicalQty,
+                'system_qty' => $countedQty,
                 'variance_qty' => 0,
                 'adjustment_status' => AuditLine::ADJUSTMENT_ADJUSTED,
                 'adjusted_at' => now(),
@@ -96,7 +103,7 @@ class StockAdjustmentService
                     'product_code' => $line->product_code,
                     'batch' => $line->batch,
                     'old_system_qty' => $oldQty,
-                    'new_system_qty' => $physicalQty,
+                    'new_system_qty' => $countedQty,
                     'variance_qty' => $variance,
                 ])
                 ->log('Stock adjustment posted');

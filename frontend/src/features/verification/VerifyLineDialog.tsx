@@ -30,6 +30,7 @@ export function VerifyLineDialog({
   const { enqueueSnackbar } = useSnackbar()
 
   const [physicalQty, setPhysicalQty] = useState('')
+  const [looseQty, setLooseQty] = useState('')
   const [batch, setBatch] = useState('')
   const [expiry, setExpiry] = useState('')
   const [shelf, setShelf] = useState('')
@@ -40,6 +41,7 @@ export function VerifyLineDialog({
     if (!line) return
 
     setPhysicalQty(String(line.physical_qty ?? 0))
+    setLooseQty(String(line.loose_qty ?? 0))
     setBatch(line.batch ?? '')
     setExpiry(line.expiry_date ?? '')
     setShelf(line.shelf_location ?? '')
@@ -51,6 +53,7 @@ export function VerifyLineDialog({
     mutationFn: async () =>
       patch<AuditLine>(`/verification/lines/${line!.id}`, {
         physical_qty: Number(physicalQty || 0),
+        loose_qty: Number(looseQty || 0),
         batch,
         expiry_date: expiry || null,
         shelf_location: shelf || null,
@@ -74,10 +77,14 @@ export function VerifyLineDialog({
 
   if (!line) return null
 
-  const projectedVariance = Number(physicalQty || 0) - Number(line.system_qty)
+  // System - (Physical + Loose), the same rule the server applies. Shown
+  // live so the verifier can see the effect of a correction before saving.
+  const projectedVariance =
+    Number(line.system_qty) - (Number(physicalQty || 0) + Number(looseQty || 0))
 
   return (
     <FormDialog
+      consequence="Saving records the counted quantities against this line and marks it verified. The variance is recalculated by the server from the quantities you enter."
       open={open}
       title="Verify counted line"
       description={line.description ?? line.product_code ?? 'Counted line'}
@@ -106,6 +113,12 @@ export function VerifyLineDialog({
           </Box>
           <Box>
             <Typography variant="caption" sx={{ display: 'block' }}>
+              Loose quantity
+            </Typography>
+            <Typography variant="h5">{formatQuantity(Number(looseQty || 0))}</Typography>
+          </Box>
+          <Box>
+            <Typography variant="caption" sx={{ display: 'block' }}>
               Variance
             </Typography>
             <Typography variant="h5" component="div">
@@ -130,6 +143,16 @@ export function VerifyLineDialog({
           size="small"
           fullWidth
           required
+          slotProps={{ htmlInput: { min: 0, step: 'any' } }}
+        />
+        <TextField
+          label="Loose Quantity"
+          type="number"
+          value={looseQty}
+          onChange={(event) => setLooseQty(event.target.value)}
+          size="small"
+          fullWidth
+          helperText="Counted outside a full pack, alongside the whole units."
           slotProps={{ htmlInput: { min: 0, step: 'any' } }}
         />
         <TextField

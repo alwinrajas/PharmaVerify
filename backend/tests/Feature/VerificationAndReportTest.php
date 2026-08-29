@@ -27,7 +27,7 @@ class VerificationAndReportTest extends TestCase
         $line = $line->fresh();
 
         $this->assertEquals(98, $line->physical_qty);
-        $this->assertEquals(-2, $line->variance_qty, 'Variance is recomputed, never taken from the request.');
+        $this->assertEquals(2, $line->variance_qty, 'Variance is recomputed, never taken from the request.');
         $this->assertSame(AuditLine::VERIFICATION_VERIFIED, $line->verification_status);
         $this->assertEquals($user->id, $line->verified_by);
 
@@ -100,7 +100,7 @@ class VerificationAndReportTest extends TestCase
                 'description' => 'Product '.$index,
                 'system_qty' => $system,
                 'physical_qty' => $physical,
-                'variance_qty' => AuditLine::calculateVariance($physical, $system),
+                'variance_qty' => AuditLine::calculateVariance($physical, 0, $system),
             ]);
         }
 
@@ -109,11 +109,13 @@ class VerificationAndReportTest extends TestCase
         $response->assertOk();
         $this->assertSame(2, $response->json('meta.total'), 'Only the lines that differ are listed.');
 
+        // Variance is System - (Physical + Loose): short is positive, and the
+        // keys say so rather than leaving the reader to work out the sign.
         $summary = $response->json('meta.summary');
-        $this->assertSame(1, $summary['negative_count']);
-        $this->assertSame(1, $summary['positive_count']);
-        $this->assertSame(1, $summary['zero_count']);
-        $this->assertEquals(-2, $summary['net_variance']);
+        $this->assertSame(1, $summary['short_count']);
+        $this->assertSame(1, $summary['excess_count']);
+        $this->assertSame(1, $summary['matched_count']);
+        $this->assertEquals(2, $summary['net_variance']);
     }
 
     public function test_every_report_runs_and_can_be_exported(): void
@@ -184,7 +186,7 @@ class VerificationAndReportTest extends TestCase
             'description' => $item->description,
             'system_qty' => $system,
             'physical_qty' => $physical,
-            'variance_qty' => AuditLine::calculateVariance($physical, $system),
+            'variance_qty' => AuditLine::calculateVariance($physical, 0, $system),
             'batch' => 'B001',
         ]);
 

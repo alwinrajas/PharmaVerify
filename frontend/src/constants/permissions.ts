@@ -26,6 +26,7 @@ export const PERMISSIONS = {
 
   hhtView: 'hht.view',
   hhtSubmit: 'hht.submit',
+  hhtImport: 'hht.import',
 
   auditsView: 'audits.view',
   verificationEdit: 'verification.edit',

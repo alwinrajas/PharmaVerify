@@ -20,6 +20,7 @@ import { ErrorState, LoadingState } from '@/components/states'
 import { useAuth } from '@/features/auth/AuthContext'
 import { apiErrorMessage, get, put } from '@/services/apiClient'
 import { PERMISSIONS } from '@/constants/permissions'
+import { neutral, semantic } from '@/theme'
 
 interface SettingEntry {
   id: number
@@ -173,8 +174,8 @@ export function SettingsPage() {
                   label={data.integrations.onedrive_driver}
                   sx={
                     data.integrations.onedrive_driver === 'graph'
-                      ? { bgcolor: '#E4F3EA', color: '#1B6E3C' }
-                      : { bgcolor: '#FBF0DE', color: '#B26A00' }
+                      ? { bgcolor: semantic.success.bg, color: semantic.success.fg }
+                      : { bgcolor: semantic.warning.bg, color: semantic.warning.fg }
                   }
                 />
               </Stack>
@@ -193,8 +194,8 @@ export function SettingsPage() {
                   label={data.integrations.onedrive_configured ? 'Yes' : 'Not yet'}
                   sx={
                     data.integrations.onedrive_configured
-                      ? { bgcolor: '#E4F3EA', color: '#1B6E3C' }
-                      : { bgcolor: '#ECEFEE', color: '#5F6B6A' }
+                      ? { bgcolor: semantic.success.bg, color: semantic.success.fg }
+                      : { bgcolor: neutral[100], color: neutral[600] }
                   }
                 />
               </Stack>

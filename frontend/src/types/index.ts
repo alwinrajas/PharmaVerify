@@ -35,7 +35,10 @@ export interface Shop {
 export interface Item {
   id: number
   product_code: string
+  /** The 7-digit internal code. A different identifier system from the GTIN. */
   barcode: string | null
+  /** The code printed on the carton, and what the handheld scans. */
+  gtin: string | null
   description: string
   generic_name: string | null
   manufacturer: string | null
@@ -56,6 +59,9 @@ export interface Device {
   serial_number: string | null
   status: string
   last_submission_at: string | null
+  /** Set once the handheld has exchanged a pairing code for its own token. */
+  paired_at?: string | null
+  last_seen_at?: string | null
 }
 
 export interface ItemStock {
@@ -64,11 +70,21 @@ export interface ItemStock {
   shop_code?: string
   shop_name?: string
   product_code: string
+  /** The 7-digit internal code. A different identifier system from the GTIN. */
   barcode: string | null
+  /** The code printed on the carton, and what the handheld scans. */
+  gtin: string | null
   description: string
   system_qty: number
+  /** Packs rather than loose units. Fractional by design — never rounded. */
+  whole_qty: number | null
+  /** Loose units per whole pack, from the item master. */
+  factor: number | null
   uom: string
+  /** Retail selling price. */
   price: number
+  /** As supplied by the ERP. Never recalculated here. */
+  total_cost: number | null
   batch: string
   expiry_date: string | null
   shelf_location: string | null
@@ -104,6 +120,10 @@ export interface StockImport {
 export interface Audit {
   id: number
   audit_number: number
+  /** The handheld's reference, AUD-ddMMyyyy-NNNN. Derived for older audits. */
+  audit_ref: string
+  /** How it arrived: 'api' from the HHT endpoint, 'excel' from an upload. */
+  source?: string
   shop_id: number
   shop_code?: string
   shop_name?: string
@@ -133,6 +153,10 @@ export interface AuditLine {
   description: string | null
   system_qty: number
   physical_qty: number
+  /** Counted outside a full pack, alongside the whole units. */
+  loose_qty: number
+  /** What a handheld export claimed the ERP held, where one was imported. */
+  source_system_qty?: number | null
   variance_qty: number
   uom: string
   price: number
@@ -201,6 +225,11 @@ export interface StockTake {
   product_code: string | null
   description: string
   physical_qty: number
+  /** Counted outside a full pack, alongside the whole units. */
+  loose_qty: number
+  stock_take_session_id?: number | null
+  /** Null for a take recorded ad hoc rather than within a cycle. */
+  take_ref?: string | null
   uom: string
   batch: string
   expiry_date: string | null
@@ -287,19 +316,47 @@ export interface DashboardSummary {
     pending_adjustments: number
     completed_audits: number
   }
-  variance_breakdown: { positive: number; negative: number; zero: number }
+  variance_breakdown: { short: number; excess: number; matched: number }
   recent_submissions: HhtSubmission[]
   recent_audits: Audit[]
   recent_adjustments: StockAdjustment[]
 }
 
+/**
+ * Variance is `System - (Physical + Loose)`, so short is positive and excess
+ * negative. The keys say short and excess rather than positive and negative so
+ * the meaning cannot be read the wrong way round.
+ */
 export interface VarianceSummary {
   total_lines: number
-  positive_count: number
-  positive_quantity: number
-  negative_count: number
-  negative_quantity: number
-  zero_count: number
+  short_count: number
+  short_quantity: number
+  excess_count: number
+  excess_quantity: number
+  matched_count: number
   net_variance: number
   pending_adjustment: number
+}
+
+/**
+ * One stock-take cycle for one shop.
+ *
+ * Grouped under a reference the operator can quote — STK-ddMMyyyy-NNNN,
+ * numbered per shop and never reused, even after a cycle is withdrawn.
+ */
+export interface StockTakeSession {
+  id: number
+  shop_id: number
+  shop_code?: string
+  shop_name?: string
+  take_ref: string
+  take_number: number
+  take_date: string | null
+  status: string
+  source: string
+  item_count: number
+  counted_by_name: string | null
+  created_by?: string | null
+  completed_at?: string | null
+  created_at?: string
 }

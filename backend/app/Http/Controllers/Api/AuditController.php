@@ -26,7 +26,7 @@ class AuditController extends Controller
 
         $query = Audit::query()->with(['shop', 'device', 'verifiedBy'])->visibleTo($request->user());
 
-        $this->applySearch($query, $request, ['hht_user']);
+        $this->applySearch($query, $request, ['audit_ref', 'hht_user']);
         $this->applyEquals($query, $request, [
             'shop_id' => 'shop_id',
             'device_id' => 'device_id',

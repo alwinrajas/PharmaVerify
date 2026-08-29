@@ -182,15 +182,15 @@ class FinalOutputService
 
         $columns = [
             'Product Code', 'Barcode', 'Product Description', 'Batch', 'Expiry', 'Shelf',
-            'UOM', 'Price', 'System Qty', 'Physical Qty', 'Variance', 'Verification', 'Adjustment',
+            'UOM', 'Price', 'System Qty', 'Physical Qty', 'Loose Qty', 'Variance', 'Verification', 'Adjustment',
         ];
 
         foreach ($columns as $index => $label) {
             $sheet->setCellValue([$index + 1, $headerRow], $label);
         }
 
-        $sheet->getStyle('A'.$headerRow.':M'.$headerRow)->getFont()->setBold(true)->getColor()->setRGB('FFFFFF');
-        $sheet->getStyle('A'.$headerRow.':M'.$headerRow)->getFill()
+        $sheet->getStyle('A'.$headerRow.':N'.$headerRow)->getFont()->setBold(true)->getColor()->setRGB('FFFFFF');
+        $sheet->getStyle('A'.$headerRow.':N'.$headerRow)->getFill()
             ->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('0F5D4C');
 
         $row = $headerRow + 1;
@@ -207,6 +207,7 @@ class FinalOutputService
                 (float) $line->price,
                 (float) $line->system_qty,
                 (float) $line->physical_qty,
+                (float) $line->loose_qty,
                 (float) $line->variance_qty,
                 $line->verification_status,
                 $line->adjustment_status,
@@ -219,12 +220,12 @@ class FinalOutputService
             $row++;
         }
 
-        $sheet->getStyle('A'.$headerRow.':M'.($row - 1))->getBorders()->getAllBorders()
+        $sheet->getStyle('A'.$headerRow.':N'.($row - 1))->getBorders()->getAllBorders()
             ->setBorderStyle(Border::BORDER_THIN)->getColor()->setRGB('D6DEDD');
-        $sheet->getStyle('H'.($headerRow + 1).':K'.($row - 1))->getAlignment()
+        $sheet->getStyle('H'.($headerRow + 1).':L'.($row - 1))->getAlignment()
             ->setHorizontal(Alignment::HORIZONTAL_RIGHT);
 
-        foreach (range('A', 'M') as $column) {
+        foreach (range('A', 'N') as $column) {
             $sheet->getColumnDimension($column)->setAutoSize(true);
         }
 

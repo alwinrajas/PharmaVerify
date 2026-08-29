@@ -26,19 +26,32 @@ About 152,500 rows in 6.6 MB. Production files are expected to grow.
 | `ITEMID` | Product code | yes |
 | `INVENTBATCHID` | Batch | yes |
 | `EXPDATE` | Expiry, as an Excel day serial | no |
-| `LOWERQTY` | **System quantity** | yes |
-| `HIGHERQTY` | Read but not stored — see §6 | no |
-| `COSTPERINVUNIT` | Fallback price when the item master has none | no |
+| `LOWERQTY` | **System quantity** — see the pending decision in §6 | yes |
+| `HIGHERQTY` | **Whole quantity**, stored as supplied | no |
+| `TOTALCOST` | ERP cost total, stored exactly as supplied | yes |
+| `COSTPERINVUNIT` | Read, not stored as the line price | no |
+
+There is no column literally named `QTY`. The report offers `LOWERQTY` and
+`HIGHERQTY`, which is why the quantity mapping is the one decision still open —
+see §6.
 
 ### `all batches` — the barcodes
 
 `ITEMID`, `INVENTBATCHID`, `EXPDATE`, `ITEMBARCODE`. Joined on item **and**
-batch.
+batch. `ITEMBARCODE` is a 7-digit internal code and is **not** the GTIN.
 
 ### `Item Master` — the products
 
-`ITEMID`, `ITEMNAME`, `INVUNIT`, `SALESPRICE` are used; `GLOBALTRADEITEMNUMBER`
-is a barcode fallback. The remaining columns are ignored.
+| Column | Used as | Required |
+| --- | --- | --- |
+| `ITEMID` | Product code | yes |
+| `ITEMNAME` | Description | yes |
+| `SALESPRICE` | **Retail selling price** — the only source of price | yes |
+| `FACTOR` | Loose units per whole pack | yes |
+| `GLOBALTRADEITEMNUMBER` | **GTIN — the scan identifier** | yes |
+| `INVUNIT` | Unit of measure | no |
+
+The remaining columns are ignored.
 
 ---
 
@@ -85,16 +98,24 @@ Importing **replaces** the stock of each shop the report covers. Shops the
 report does not mention keep everything they had. Importing the same file twice
 leaves the same number of rows — a repeat replaces rather than duplicates.
 
-### The item master is synced
+### The item master is *not* rewritten
 
-A Stock Report **creates products it introduces and refreshes the details of
-products already known** — description, unit, price and barcode. Nothing is ever
-removed.
+A Stock Report **creates products it introduces** — a stock row needs a product
+to point at — but leaves every product already on file exactly as it was.
 
-> This is a deliberate change of rule, confirmed with the business on
-> 2026-08-26. It replaces the earlier position that a stock import must not
-> alter the item master. Stock Take is unaffected and still never creates a
-> product — see `01-BRD.md` BR-09.
+> Confirmed with the business on 2026-08-28: Item Import and Stock Import are
+> two separate operations. Item Import (`POST /api/items/import`) maintains the
+> product list; Stock Import loads quantities. This supersedes the 2026-08-26
+> position that a stock import may refresh product details. Stock Take is
+> unaffected and still never creates a product — see `01-BRD.md` BR-09.
+
+### Checked before it replaces
+
+`POST /api/stock-imports/preview` reads and validates the file and reports what
+it would do — rows, locations, matched and unmatched shops, and for each shop
+what it holds now against what would take its place — **without writing
+anything**. The screen requires this check before the replacement can be
+started, and names the affected shops in the confirmation.
 
 ---
 
@@ -163,9 +184,12 @@ chunked, so that change is contained to how the work is started.
 
 | Decision | Reason |
 | --- | --- |
-| `LOWERQTY` is the system quantity | Confirmed with the business. `HIGHERQTY` differs on about a quarter of rows and is not stored. |
-| `SALESPRICE` from `Item Master` is the price | Matches how price is used elsewhere in the application. `COSTPERINVUNIT` from the stock row is a fallback. |
-| Barcode comes from `all batches`, then `GLOBALTRADEITEMNUMBER` | The batch barcode is the more specific of the two. |
+| **PENDING — `LOWERQTY` is the system quantity** | Not yet confirmed. The business answer is in an audio recording that has not been transcribed, so the mapping is unchanged from before. When it is settled, the single line to change is `system_qty` in `StockReportImportService::readStockSheet()`, plus `system_qty` on `item_stocks`. |
+| `SALESPRICE` is the price | Confirmed 2026-08-28. It is the retail selling price, and the only source of one — the earlier fallback to `COSTPRICE` and `COSTPERINVUNIT` is gone. |
+| `GLOBALTRADEITEMNUMBER` is the scan identifier | Confirmed 2026-08-28. It is stored on `items.gtin` and `item_stocks.gtin`. The 7-digit `ITEMBARCODE` is a **different identifier system**, keeps its own `barcode` column, and never displaces the GTIN. |
+| Whole quantity may be fractional | Confirmed 2026-08-28. `HIGHERQTY = LOWERQTY / FACTOR`; 387 of 8,913 rows in the reference file are fractional (0.04, 0.24, 0.33, 1.38 …). It is never rounded to a whole number. Where the column is absent it is derived from `FACTOR`. |
+| `TOTALCOST` is stored, never derived | Confirmed 2026-08-28. The ERP total does not reconcile with quantity × unit cost on 140 rows, so the supplied value is authoritative. |
+| A shared GTIN is reported, not resolved | A GTIN two products answer to cannot identify one stock line. The import reports it and carries on rather than inventing a rule for picking a winner. |
 | Keys are trimmed before joining | Raw keys carry stray whitespace: joining without trimming yields **no** barcodes at all, silently. |
 | `EXPDATE` is read as an Excel serial | Reading without styling means the cell arrives as a plain number. Values outside roughly 1970–2150 are treated as bad data. |
 | Rejections are recorded against the first shop's import | A rejected row often has no usable shop, so it cannot be filed under one. |
@@ -178,3 +202,45 @@ A single-sheet file with `Product Code`, `Product Description` and
 `System Stock` is still accepted for one shop, and a shop must be chosen for it.
 The importer decides which path to take by looking at the sheet names, so both
 file shapes work without a setting.
+
+---
+
+## 8. GTIN coverage in the reference file
+
+The business has confirmed the GTIN is the identifier the handheld scans. In the
+supplied report it is largely absent:
+
+| Measure | Count | Share |
+| --- | --- | --- |
+| Products in `Item Master` | 40,360 | — |
+| …carrying a `GLOBALTRADEITEMNUMBER` | 1,235 | **3.1%** |
+| Stock rows | 8,913 | — |
+| …whose product has a GTIN | 1,700 | **19.1%** |
+| …whose product has **no** GTIN | 7,213 | **80.9%** |
+| GTINs shared by more than one product | 0 | — |
+
+Four stock lines in five therefore cannot be found by GTIN today. This is a data
+question for the business, not something the application can decide, so:
+
+- the GTIN is the **primary** lookup wherever a code is resolved;
+- the 7-digit `ITEMBARCODE` is consulted **only when the GTIN finds nothing**,
+  which is what keeps the other 80.9% scannable in the meantime;
+- coverage is reported on every import and in the pre-import check, so the gap
+  stays visible rather than turning into unexplained "not found" scans.
+
+If the business intends the GTIN to be the sole identifier, the item master
+needs `GLOBALTRADEITEMNUMBER` populated before that can be switched on.
+
+---
+
+## 9. Item Import
+
+`POST /api/items/import` — the item master, on its own.
+
+Accepts the full Stock Report (only its `Item Master` sheet is read) or a single
+sheet with the same headings. Products are **created and updated**; none are
+ever deleted. `update_existing=0` limits it to products not already on file.
+
+It never touches stock quantities. That separation is the point: a stock
+snapshot arriving on a Tuesday must not quietly rewrite the descriptions and
+prices of the whole catalogue.

@@ -1,5 +1,6 @@
 import { Box, Button, IconButton, Stack, TextField, Tooltip, Typography } from '@mui/material'
 import AddRoundedIcon from '@mui/icons-material/AddRounded'
+import UploadFileRoundedIcon from '@mui/icons-material/UploadFileRounded'
 import EditRoundedIcon from '@mui/icons-material/EditRounded'
 import ToggleOnRoundedIcon from '@mui/icons-material/ToggleOnRounded'
 import ToggleOffRoundedIcon from '@mui/icons-material/ToggleOffRounded'
@@ -13,7 +14,7 @@ import { PageHeader } from '@/components/PageHeader'
 import { StatusBadge } from '@/components/StatusBadge'
 import { useAuth } from '@/features/auth/AuthContext'
 import { useTableQuery } from '@/hooks/useTableQuery'
-import { apiErrorMessage, get, post, put } from '@/services/apiClient'
+import { apiClient, apiErrorMessage, get, post, put } from '@/services/apiClient'
 import { formatMoney } from '@/utils/format'
 import { PERMISSIONS } from '@/constants/permissions'
 import type { Item } from '@/types'
@@ -58,6 +59,34 @@ export function ItemsPage() {
       closeDialog()
     },
     onError: (caught) => setFormError(apiErrorMessage(caught)),
+  })
+
+  /**
+   * Loads the product list from the business export.
+   *
+   * This maintains the item master and nothing else — stock quantities arrive
+   * separately through Stock Import. Products are created and updated here,
+   * never removed, so the operation is safe to repeat.
+   */
+  const importMutation = useMutation({
+    mutationFn: async (chosen: File) => {
+      const payload = new FormData()
+      payload.append('file', chosen)
+
+      const response = await apiClient.post<{ message?: string; data: { created: number; updated: number } }>(
+        '/items/import',
+        payload,
+        { headers: { 'Content-Type': 'multipart/form-data' } },
+      )
+
+      return response.data
+    },
+    onSuccess: (response) => {
+      enqueueSnackbar(response.message ?? 'Item master imported.', { variant: 'success' })
+      void queryClient.invalidateQueries({ queryKey: ['items'] })
+    },
+    onError: (caught) =>
+      enqueueSnackbar(apiErrorMessage(caught, 'The item file could not be imported.'), { variant: 'error' }),
   })
 
   const toggleMutation = useMutation({
@@ -136,11 +165,23 @@ export function ItemsPage() {
       ),
     },
     {
+      // The code printed on the carton, and what the handheld scans.
+      key: 'gtin',
+      label: 'GTIN',
+      width: 160,
+      render: (item) => (
+        <Typography variant="body2" sx={{ fontFamily: 'ui-monospace, monospace', fontSize: '0.8125rem' }}>
+          {item.gtin ?? '—'}
+        </Typography>
+      ),
+    },
+    {
+      // The 7-digit internal code — a separate identifier system.
       key: 'barcode',
       label: 'Barcode',
       sortable: true,
       width: 150,
-      hideBelow: 'md',
+      hideBelow: 'lg',
       render: (item) => (
         <Typography variant="body2" sx={{ fontFamily: 'ui-monospace, monospace', fontSize: '0.8125rem' }}>
           {item.barcode ?? '—'}
@@ -173,12 +214,16 @@ export function ItemsPage() {
           {can(PERMISSIONS.itemsEdit) ? (
             <>
               <Tooltip title="Edit item">
-                <IconButton size="small" onClick={() => openEdit(item)}>
+                <IconButton size="small" aria-label="Edit item" onClick={() => openEdit(item)}>
                   <EditRoundedIcon fontSize="small" />
                 </IconButton>
               </Tooltip>
               <Tooltip title={item.status === 'active' ? 'Deactivate' : 'Activate'}>
-                <IconButton size="small" onClick={() => toggleMutation.mutate(item)}>
+                <IconButton
+                  size="small"
+                  aria-label={item.status === 'active' ? 'Deactivate item' : 'Activate item'}
+                  onClick={() => toggleMutation.mutate(item)}
+                >
                   {item.status === 'active' ? (
                     <ToggleOnRoundedIcon fontSize="small" color="success" />
                   ) : (
@@ -201,14 +246,37 @@ export function ItemsPage() {
         crumbs={[{ label: 'Master' }, { label: 'Items' }]}
         actions={
           can(PERMISSIONS.itemsCreate) ? (
-            <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={openCreate}>
-              Add Item
-            </Button>
+            <Stack direction="row" spacing={1.5}>
+              <Button
+                component="label"
+                variant="outlined"
+                startIcon={<UploadFileRoundedIcon />}
+                disabled={importMutation.isPending}
+              >
+                {importMutation.isPending ? 'Importing…' : 'Import Items'}
+                <input
+                  hidden
+                  type="file"
+                  accept=".xls,.xlsx"
+                  onChange={(event) => {
+                    const chosen = event.target.files?.[0]
+                    if (chosen) importMutation.mutate(chosen)
+                    event.target.value = ''
+                  }}
+                />
+              </Button>
+              <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={openCreate}>
+                Add Item
+              </Button>
+            </Stack>
           ) : null
         }
       />
 
       <DataTable
+        focusable
+        focusTitle="Items"
+        columnToggle
         columns={columns}
         rows={data?.data ?? []}
         rowKey={(item) => item.id}

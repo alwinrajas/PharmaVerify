@@ -7,6 +7,7 @@ use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Resources\UserResource;
 use App\Models\User;
 use App\Support\ApiResponse;
+use App\Support\TokenExpiry;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -31,9 +32,13 @@ class AuthController extends Controller
         }
 
         $user->forceFill(['last_login_at' => now()])->save();
-        $user->tokens()->where('name', 'pharmaverify-web')->delete();
+        $user->tokens()->where('name', TokenExpiry::WEB_TOKEN_NAME)->delete();
 
-        $token = $user->createToken($request->string('device_name')->toString() ?: 'pharmaverify-web')->plainTextToken;
+        $tokenName = $request->string('device_name')->toString() ?: TokenExpiry::WEB_TOKEN_NAME;
+
+        // Null unless an expiry window has been configured, in which case the
+        // token simply does not expire — see config/security.php.
+        $token = $user->createToken($tokenName, ['*'], TokenExpiry::for($tokenName))->plainTextToken;
 
         activity('auth')->causedBy($user)->log('Signed in');
 

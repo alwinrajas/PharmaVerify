@@ -25,6 +25,10 @@ class AuditLineResource extends JsonResource
             'description' => $this->description,
             'system_qty' => (float) $this->system_qty,
             'physical_qty' => (float) $this->physical_qty,
+            // Counted alongside the whole units, never folded into them.
+            'loose_qty' => (float) $this->loose_qty,
+            'source_system_qty' => $this->source_system_qty === null ? null : (float) $this->source_system_qty,
+            // System - (Physical + Loose): positive is short, negative excess.
             'variance_qty' => (float) $this->variance_qty,
             'uom' => $this->uom,
             'price' => (float) $this->price,

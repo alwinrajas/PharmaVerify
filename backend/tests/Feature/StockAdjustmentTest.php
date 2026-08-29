@@ -15,12 +15,17 @@ class StockAdjustmentTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_variance_is_physical_minus_system(): void
+    /**
+     * Variance = System - (Physical + Loose). The wider set of cases, including
+     * loose stock and the historical backfill, lives in
+     * {@see VarianceConventionTest}; these are the ones this suite relies on.
+     */
+    public function test_variance_is_system_minus_what_was_counted(): void
     {
-        $this->assertEquals(-5, AuditLine::calculateVariance(95, 100));
-        $this->assertEquals(3, AuditLine::calculateVariance(103, 100));
-        $this->assertEquals(0, AuditLine::calculateVariance(100, 100));
-        $this->assertEquals(0.5, AuditLine::calculateVariance(100.5, 100));
+        $this->assertEquals(5, AuditLine::calculateVariance(95, 0, 100));
+        $this->assertEquals(-3, AuditLine::calculateVariance(103, 0, 100));
+        $this->assertEquals(0, AuditLine::calculateVariance(100, 0, 100));
+        $this->assertEquals(-0.5, AuditLine::calculateVariance(100.5, 0, 100));
     }
 
     public function test_saving_an_adjustment_updates_system_stock_immediately(): void
@@ -40,7 +45,7 @@ class StockAdjustmentTest extends TestCase
         $adjustment = StockAdjustment::firstOrFail();
         $this->assertEquals(100, $adjustment->old_system_qty);
         $this->assertEquals(95, $adjustment->physical_qty);
-        $this->assertEquals(-5, $adjustment->variance_qty);
+        $this->assertEquals(5, $adjustment->variance_qty);
         $this->assertEquals(95, $adjustment->new_system_qty);
         $this->assertEquals($user->id, $adjustment->adjusted_by);
         $this->assertNotNull($adjustment->adjusted_at);
@@ -101,7 +106,7 @@ class StockAdjustmentTest extends TestCase
             'description' => 'Rabeprazole 20mg Tablet',
             'system_qty' => 0,
             'physical_qty' => 24,
-            'variance_qty' => 24,
+            'variance_qty' => -24,
             'is_unknown_item' => true,
         ]);
 
@@ -181,7 +186,7 @@ class StockAdjustmentTest extends TestCase
             'description' => $item->description,
             'system_qty' => 100,
             'physical_qty' => 95,
-            'variance_qty' => -5,
+            'variance_qty' => 5,
             'batch' => 'B001',
         ]);
 

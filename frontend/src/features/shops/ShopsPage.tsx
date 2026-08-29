@@ -185,12 +185,16 @@ export function ShopsPage() {
           {can(PERMISSIONS.shopsEdit) ? (
             <>
               <Tooltip title="Edit shop">
-                <IconButton size="small" onClick={() => openEdit(shop)}>
+                <IconButton size="small" aria-label="Edit shop" onClick={() => openEdit(shop)}>
                   <EditRoundedIcon fontSize="small" />
                 </IconButton>
               </Tooltip>
               <Tooltip title={shop.status === 'active' ? 'Deactivate' : 'Activate'}>
-                <IconButton size="small" onClick={() => toggleMutation.mutate(shop)}>
+                <IconButton
+                  size="small"
+                  aria-label={shop.status === 'active' ? 'Deactivate shop' : 'Activate shop'}
+                  onClick={() => toggleMutation.mutate(shop)}
+                >
                   {shop.status === 'active' ? (
                     <ToggleOnRoundedIcon fontSize="small" color="success" />
                   ) : (
@@ -221,6 +225,9 @@ export function ShopsPage() {
       />
 
       <DataTable
+        focusable
+        focusTitle="Shops"
+        columnToggle
         columns={columns}
         rows={data?.data ?? []}
         rowKey={(shop) => shop.id}

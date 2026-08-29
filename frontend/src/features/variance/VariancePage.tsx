@@ -1,4 +1,4 @@
-import { Box, Button, Card, CardContent, Checkbox, TextField, Typography } from '@mui/material'
+import { Box, Button, Checkbox, TextField, Typography } from '@mui/material'
 import TuneRoundedIcon from '@mui/icons-material/TuneRounded'
 import DownloadRoundedIcon from '@mui/icons-material/DownloadRounded'
 import PictureAsPdfRoundedIcon from '@mui/icons-material/PictureAsPdfRounded'
@@ -18,6 +18,13 @@ import { apiErrorMessage, download, get } from '@/services/apiClient'
 import { formatDate, formatNumber, formatQuantity } from '@/utils/format'
 import { PERMISSIONS } from '@/constants/permissions'
 import type { AuditLine, VarianceSummary } from '@/types'
+import TrendingDownRoundedIcon from '@mui/icons-material/TrendingDownRounded'
+import TrendingUpRoundedIcon from '@mui/icons-material/TrendingUpRounded'
+import DoneAllRoundedIcon from '@mui/icons-material/DoneAllRounded'
+import RuleRoundedIcon from '@mui/icons-material/RuleRounded'
+import CompareArrowsRoundedIcon from '@mui/icons-material/CompareArrowsRounded'
+import PendingActionsRoundedIcon from '@mui/icons-material/PendingActionsRounded'
+import { KpiStrip } from '@/components/KpiStrip'
 
 export function VariancePage() {
   const { can } = useAuth()
@@ -134,6 +141,15 @@ export function VariancePage() {
       ),
     },
     {
+      // Counted alongside the whole units, never folded into them.
+      key: 'loose_qty',
+      label: 'Loose',
+      sortable: true,
+      align: 'right',
+      width: 90,
+      render: (line) => (Number(line.loose_qty) === 0 ? '—' : formatQuantity(line.loose_qty)),
+    },
+    {
       key: 'variance_qty',
       label: 'Variance',
       sortable: true,
@@ -192,42 +208,54 @@ export function VariancePage() {
       />
 
       {summary ? (
-        <Box
-          sx={{
-            display: 'grid',
-            gap: 2,
-            gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', lg: 'repeat(6, 1fr)' },
-            mb: 2.5,
-          }}
-        >
-          <Stat label="Lines in scope" value={formatNumber(summary.total_lines)} />
-          <Stat
-            label="Short lines"
-            value={formatNumber(summary.negative_count)}
-            hint={`${formatQuantity(summary.negative_quantity)} units`}
-            tone="error"
-          />
-          <Stat
-            label="Excess lines"
-            value={formatNumber(summary.positive_count)}
-            hint={`+${formatQuantity(summary.positive_quantity)} units`}
-            tone="success"
-          />
-          <Stat label="Matched lines" value={formatNumber(summary.zero_count)} />
-          <Stat
-            label="Net variance"
-            value={formatQuantity(summary.net_variance)}
-            tone={summary.net_variance < 0 ? 'error' : summary.net_variance > 0 ? 'success' : undefined}
-          />
-          <Stat
-            label="Awaiting adjustment"
-            value={formatNumber(summary.pending_adjustment)}
-            tone={summary.pending_adjustment > 0 ? 'warning' : undefined}
-          />
-        </Box>
+        <KpiStrip
+          items={[
+            { label: 'Lines in scope', value: formatNumber(summary.total_lines), icon: RuleRoundedIcon },
+            {
+              label: 'Short lines',
+              value: formatNumber(summary.short_count),
+              hint: `${formatQuantity(summary.short_quantity)} units`,
+              icon: TrendingDownRoundedIcon,
+              tone: 'short',
+            },
+            {
+              // Excess is a discrepancy, not a success — see the variance
+              // semantics in the theme.
+              label: 'Excess lines',
+              value: formatNumber(summary.excess_count),
+              hint: `${formatQuantity(summary.excess_quantity)} units`,
+              icon: TrendingUpRoundedIcon,
+              tone: 'excess',
+            },
+            {
+              label: 'Matched lines',
+              value: formatNumber(summary.matched_count),
+              icon: DoneAllRoundedIcon,
+              tone: 'matched',
+            },
+            {
+              // System - (Physical + Loose): a positive net is a net shortage.
+              label: 'Net variance',
+              value: formatQuantity(summary.net_variance),
+              icon: CompareArrowsRoundedIcon,
+              tone: summary.net_variance > 0 ? 'short' : summary.net_variance < 0 ? 'excess' : 'matched',
+            },
+            {
+              label: 'Awaiting adjustment',
+              value: formatNumber(summary.pending_adjustment),
+              icon: PendingActionsRoundedIcon,
+              tone: summary.pending_adjustment > 0 ? 'warning' : 'default',
+            },
+          ]}
+        />
       ) : null}
 
       <DataTable
+        focusable
+        focusTitle="Variance"
+        density="compact"
+        columnToggle
+        freezeFirstColumn
         columns={columns}
         rows={rows}
         rowKey={(line) => line.id}
@@ -268,9 +296,9 @@ export function VariancePage() {
               onChange={(value) => table.setFilter('variance', value)}
               allLabel="Any variance"
               options={[
-                { value: 'negative', label: 'Short (negative)' },
-                { value: 'positive', label: 'Excess (positive)' },
-                { value: 'zero', label: 'Matched (zero)' },
+                { value: 'short', label: 'Short' },
+                { value: 'excess', label: 'Excess' },
+                { value: 'zero', label: 'Matched' },
                 { value: 'all', label: 'All lines' },
               ]}
               width={175}
@@ -319,32 +347,5 @@ export function VariancePage() {
         onPosted={() => setSelected([])}
       />
     </Box>
-  )
-}
-
-function Stat({
-  label,
-  value,
-  hint,
-  tone,
-}: {
-  label: string
-  value: string
-  hint?: string
-  tone?: 'success' | 'error' | 'warning'
-}) {
-  const colour =
-    tone === 'success' ? 'success.main' : tone === 'error' ? 'error.main' : tone === 'warning' ? 'warning.main' : 'text.primary'
-
-  return (
-    <Card>
-      <CardContent sx={{ p: 1.75, '&:last-child': { pb: 1.75 } }}>
-        <Typography variant="caption" sx={{ display: 'block' }}>
-          {label}
-        </Typography>
-        <Typography sx={{ fontSize: '1.25rem', fontWeight: 700, color: colour }}>{value}</Typography>
-        {hint ? <Typography variant="caption">{hint}</Typography> : null}
-      </CardContent>
-    </Card>
   )
 }

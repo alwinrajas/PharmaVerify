@@ -21,6 +21,7 @@ import { useAuth } from '@/features/auth/AuthContext'
 import { apiErrorMessage, get } from '@/services/apiClient'
 import { formatNumber, formatRelative } from '@/utils/format'
 import type { DashboardSummary } from '@/types'
+import { brand, neutral, semantic, variance as varianceColour } from '@/theme'
 
 export function DashboardPage() {
   const { user, can } = useAuth()
@@ -97,7 +98,7 @@ export function DashboardPage() {
     { label: 'Generate Reports', to: '/reports', icon: AssessmentRoundedIcon, permission: 'reports.view' },
   ].filter((action) => can(action.permission))
 
-  const varianceTotal = variance.positive + variance.negative + variance.zero || 1
+  const varianceTotal = variance.short + variance.excess + variance.matched || 1
 
   return (
     <Box>
@@ -119,7 +120,7 @@ export function DashboardPage() {
           const Icon = metric.icon
 
           const accent =
-            metric.tone === 'attention' ? '#B26A00' : metric.tone === 'positive' ? '#1B6E3C' : '#0F5D4C'
+            metric.tone === 'attention' ? semantic.warning.fg : metric.tone === 'positive' ? semantic.success.fg : brand[600]
 
           return (
             <Card
@@ -208,14 +209,14 @@ export function DashboardPage() {
               Variance across counted lines
             </Typography>
             <Typography variant="caption" sx={{ display: 'block', mb: 2 }}>
-              Physical count compared with system stock
+              System stock compared with what was counted, whole units and loose
             </Typography>
 
             <Box sx={{ display: 'flex', height: 10, borderRadius: 5, overflow: 'hidden', mb: 2 }}>
               {[
-                { value: variance.negative, colour: '#B3261E' },
-                { value: variance.positive, colour: '#1B6E3C' },
-                { value: variance.zero, colour: '#D6DEDD' },
+                { value: variance.short, colour: varianceColour.short },
+                { value: variance.excess, colour: varianceColour.excess },
+                { value: variance.matched, colour: neutral[300] },
               ].map((segment, index) => (
                 <Box
                   key={index}
@@ -226,9 +227,9 @@ export function DashboardPage() {
 
             <Stack spacing={1.25}>
               {[
-                { label: 'Short (negative variance)', value: variance.negative, colour: '#B3261E' },
-                { label: 'Excess (positive variance)', value: variance.positive, colour: '#1B6E3C' },
-                { label: 'Matched (no variance)', value: variance.zero, colour: '#8C9A97' },
+                { label: 'Short', value: variance.short, colour: varianceColour.short },
+                { label: 'Excess', value: variance.excess, colour: varianceColour.excess },
+                { label: 'Matched', value: variance.matched, colour: varianceColour.matched },
               ].map((row) => (
                 <Stack key={row.label} direction="row" alignItems="center" spacing={1.25}>
                   <Box sx={{ width: 9, height: 9, borderRadius: '50%', bgcolor: row.colour, flexShrink: 0 }} />

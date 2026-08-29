@@ -5,14 +5,82 @@ placeholder such as `YOUR_DATABASE_PASSWORD`.
 
 ---
 
+## Deployment profile
+
+**The first client deployment is a single on-premises PC, single user.** Not a
+server, not a cloud instance: one machine running the database, the API and the
+frontend together, used by one person.
+
+That is a supported way to run PharmaVerify and needs no change to the
+application. It does change which parts of this guide apply, and it changes the
+risk profile — so the differences are set out here rather than left implicit.
+
+| | Single-PC deployment | Server deployment |
+| --- | --- | --- |
+| Database | SQL Server **Express** on the same machine is sufficient | Separate instance or server |
+| Web server | IIS on Windows 10/11 Pro | IIS, Nginx or Apache |
+| Origin | One machine — **no CORS at all** | May be split across hostnames |
+| `TRUSTED_PROXIES` | Not needed — nothing terminates TLS in front | Needed behind a proxy |
+| `CACHE_STORE=file` etc. | Correct, and no caveat | Correct only on a single server |
+| Backup | **Off-machine copy is essential** — see below | Off-site copy of the fulls |
+| Availability | The PC *is* the system | Depends on the topology |
+
+### What a single PC means for risk
+
+Say it plainly rather than discover it later:
+
+- **The machine is a single point of failure.** If it fails, is stolen, or is
+  reinstalled, the entire business record goes with it. There is no second
+  server, no replica and no redundant disk unless the client provides one.
+- **Backups must leave the machine.** A backup written to the same disk is lost
+  in exactly the scenario it exists for. This is the single most important item
+  in this profile.
+- **Physical security is now part of the security model.** The whole stock
+  history sits on one desk machine. Full-disk encryption and a locked screen
+  matter here in a way they would not in a server room.
+- **The PC must be running** whenever anything needs to reach it — which matters
+  only if handheld terminals submit counts to it. See the open question below.
+
+### On SQL Server Express
+
+Express is free and adequate here. Two of its limits are worth knowing:
+
+- **10 GB maximum per database.** For scale: a database holding the full
+  demonstration dataset is about 16 MB. Growth comes almost entirely from
+  `audit_lines`, one row per counted line per audit, so the ceiling is a
+  function of how often counts run and for how many years. It is a real horizon
+  rather than an immediate constraint — check the database size annually.
+- **No SQL Server Agent.** Express cannot schedule its own backup jobs, so
+  scheduling must come from **Windows Task Scheduler** driving the supplied
+  `Backup-PharmaVerify.ps1`. That wrapper was written for exactly this.
+
+Standard or Developer edition removes both limits if the client prefers.
+
+> **CLIENT DECISION REQUIRED — do the handheld terminals submit to this PC?**
+>
+> This is the one question that materially changes the setup, and it is not ours
+> to answer.
+>
+> - **If yes**, the PC must be reachable from the counting area on the local
+>   network, must be running whenever counts are submitted, needs an inbound
+>   firewall rule, and needs HTTPS with a certificate the devices will trust —
+>   see §5.
+> - **If no** — a genuinely standalone install where counts arrive another way,
+>   or the in-app simulator is used — then no inbound access is required at all
+>   and the application can be reached at `localhost`.
+>
+> Outbound HTTPS is still required either way if OneDrive sharing is used.
+
+---
+
 ## 1. Server requirements
 
 | Component | Requirement |
 | --- | --- |
 | PHP | 8.2 or later — `bcmath`, `ctype`, `fileinfo`, `json`, `mbstring`, `openssl`, `pdo`, `tokenizer`, `xml`, `zip`, `gd` |
 | Composer | 2.x |
-| Node.js | 20 or later (build only; not needed at runtime) |
-| Database | Microsoft SQL Server 2017 or later |
+| Node.js | 20 or later (build only; not needed at runtime, and not needed on the PC at all if a built frontend is supplied) |
+| Database | Microsoft SQL Server 2017 or later — **Express is sufficient for the single-PC profile** |
 | SQL Server driver | Microsoft ODBC Driver 18 **plus** the PHP `sqlsrv` and `pdo_sqlsrv` extensions |
 | Web server | IIS, Nginx or Apache with HTTPS |
 | Outbound network | `login.microsoftonline.com` and `graph.microsoft.com` on 443, for OneDrive |
@@ -163,13 +231,18 @@ nothing — see `18-BACKUP-AND-RECOVERY.md`.
 
 ## 4. Frontend deployment
 
+**In production, nothing is built.** The release package ships `frontend-dist/`
+already compiled — serve it as static files and route `/api` to Laravel. Node.js
+is not required on the target machine.
+
+The build below runs on our machine when a release is cut, or on a developer
+machine working from the source package:
+
 ```bash
 cd frontend
 npm ci
 npm run build       # produces frontend/dist
 ```
-
-Serve `frontend/dist` as static files and route `/api` to Laravel.
 
 ### Nginx
 
@@ -229,9 +302,81 @@ reads it.
 
 ## 5. HTTPS
 
-Required. Tokens travel in the `Authorization` header, and the HHT devices post
-completed counts. Redirect HTTP to HTTPS; if Laravel sits behind a proxy that
-terminates TLS, configure `TrustProxies` so generated URLs use `https`.
+Required wherever traffic crosses a network. Tokens travel in the
+`Authorization` header, and the HHT devices post completed counts. Redirect HTTP
+to HTTPS; if Laravel sits behind a proxy that terminates TLS, configure
+`TrustProxies` so generated URLs use `https`.
+
+### On the single-PC profile
+
+What is needed depends on the open question in **Deployment profile** above.
+
+| Situation | What HTTPS needs to be |
+| --- | --- |
+| Devices submit over the local network | **Full HTTPS.** A certificate the devices will trust — either from the client's internal certificate authority, or a public certificate for a hostname that resolves on the LAN. A self-signed certificate will be rejected by the devices unless it is installed on each of them |
+| Browser only, on the same machine | Traffic never leaves the PC. `http://localhost` is acceptable, and a self-signed certificate is fine if HTTPS is wanted anyway |
+
+`TRUSTED_PROXIES` is **not** required on this profile — nothing terminates TLS
+in front of the application.
+
+Note that `Strict-Transport-Security` is only sent over HTTPS, so on a plain
+`localhost` install it simply does not appear. That is correct behaviour, not a
+misconfiguration.
+
+### Response security headers
+
+Every response carries `X-Content-Type-Options: nosniff`,
+`X-Frame-Options: DENY` and `Referrer-Policy: no-referrer`. API responses also
+carry a `Content-Security-Policy` refusing every source, which is correct because
+the API returns JSON and files and never markup.
+
+`Strict-Transport-Security` is sent **only over HTTPS**, since it means nothing
+on a plain connection.
+
+> **Behind a TLS-terminating proxy — IIS, Nginx, a load balancer — set
+> `TRUSTED_PROXIES`.** Without it the application cannot tell that the original
+> request was HTTPS, and HSTS is silently never sent. This is the one setting
+> that fails quietly rather than loudly.
+
+```dotenv
+TRUSTED_PROXIES="10.0.0.4"          # or "*" behind a single known proxy
+SECURITY_HSTS_ENABLED=true
+SECURITY_HSTS_MAX_AGE=31536000
+SECURITY_HSTS_INCLUDE_SUBDOMAINS=true
+```
+
+### Cross-origin access
+
+Allowed origins come from configuration alone — no origin is built in.
+
+```dotenv
+CORS_ALLOWED_ORIGINS="https://pharmaverify.example.com"
+```
+
+Use a comma-separated list for more than one. If neither `CORS_ALLOWED_ORIGINS`
+nor `FRONTEND_URL` is set, no cross-origin request is allowed, which is the
+right way for this to fail. Development machines reach the API because their own
+`.env` names `http://localhost:5173`, not because localhost is permanently
+allowed everywhere.
+
+### Access token lifetime
+
+**Tokens do not expire by default**, which is the behaviour to date. Two windows
+can be set independently:
+
+```dotenv
+# AUTH_TOKEN_WEB_EXPIRY_MINUTES=
+# AUTH_TOKEN_DEVICE_EXPIRY_MINUTES=
+```
+
+They are separate because the callers are not alike: a browser signs in again in
+seconds, whereas a handheld terminal that expires part way through a stock take
+interrupts a count in progress.
+
+> **Neither window has been set, and the durations are an open decision — D-09.**
+> Leaving them unset means a token on a lost device stays valid until an
+> administrator revokes it. Agree the device window with whoever runs the counts
+> before enabling it.
 
 ---
 
@@ -271,9 +416,26 @@ Verify at Settings → Integrations: driver `graph`, credentials configured.
 | 19 | Backup failure raises an alert — a silently failing job is worse than none |
 | 20 | **Restore drill completed** and the measured recovery time recorded |
 | 21 | `.env` copied to a secrets store, held separately from the backups |
-| 22 | HHT device accounts created, one per device |
-| 23 | Sign-in verified for each role |
-| 24 | A test import, submission, adjustment and OneDrive share performed on the live environment |
+| 22 | `CORS_ALLOWED_ORIGINS` set to the real frontend origin — **server profile only**; not needed on a single PC, where there is one origin |
+| 23 | `TRUSTED_PROXIES` set if TLS terminates at a proxy — **server profile only**; nothing terminates TLS in front of a single-PC install |
+| 24 | Token expiry windows decided and set, or the decision consciously deferred — D-09 |
+| 25 | HHT device accounts created, one per device |
+| 26 | Sign-in verified for each role |
+| 27 | A test import, submission, adjustment and OneDrive share performed on the live environment |
+
+### Single-PC profile — additional items
+
+| # | Item |
+| --- | --- |
+| 28 | Confirmed whether handheld terminals submit to this PC — this drives 29 to 31 |
+| 29 | If devices submit: inbound firewall rule, and a certificate the devices trust |
+| 30 | If devices submit: the PC stays powered on and awake during counting hours |
+| 31 | If devices submit: the PC has a stable address on the network |
+| 32 | Backups scheduled through **Windows Task Scheduler** — Express has no SQL Server Agent |
+| 33 | **Backup copies leave the machine.** A backup on the same disk protects against nothing |
+| 34 | Full-disk encryption enabled, and the screen locks — the whole stock record is on this PC |
+| 35 | Disk has room for the database, the generated files and the local backups |
+| 36 | Database size checked against the Express 10 GB ceiling, and a date set to check it again |
 
 ---
 
@@ -285,6 +447,14 @@ Full procedure, including RPO, RTO, retention and the restore drill:
 **PharmaVerify does not back itself up.** It ships no scheduler, no backup
 agent and no retention policy. Everything here is run by the hosting
 infrastructure.
+
+> **On the single-PC profile this section matters more, not less.** There is no
+> second machine to fall back to, so a backup that never leaves the PC protects
+> against nothing that is likely to happen to it. Schedule
+> `Backup-PharmaVerify.ps1` through **Windows Task Scheduler** — SQL Server
+> Express has no Agent of its own — and copy the result somewhere off the
+> machine: a network share, an external disk that is not left permanently
+> connected, or the client's own backup system.
 
 Three things need backing up:
 

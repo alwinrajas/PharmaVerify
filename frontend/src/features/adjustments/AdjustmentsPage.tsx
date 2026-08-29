@@ -162,6 +162,10 @@ export function AdjustmentsPage() {
       </Alert>
 
       <DataTable
+        focusable
+        focusTitle="Stock Adjustments"
+        density="compact"
+        columnToggle
         columns={columns}
         rows={data?.data ?? []}
         rowKey={(row) => row.id}

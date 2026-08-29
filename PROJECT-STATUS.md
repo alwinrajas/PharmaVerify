@@ -2,7 +2,7 @@
 
 **Project:** Pharmacy Stock Verification Web Application
 **Window:** 2 working days (accelerated delivery)
-**Version:** 0.2.4
+**Version:** 0.2.6
 **Last updated:** 2026-08-26
 
 Statuses: `Not Started` | `In Progress` | `Completed` | `On Hold` | `Blocked` | `Needs Clarification`
@@ -15,7 +15,7 @@ The complete business flow works end to end: master data → stock import →
 HHT submission → audit → verification → variance → adjustment / stock take →
 reports → final output → OneDrive.
 
-- Backend: 91 feature tests, 448 assertions, **all passing on SQL Server 2022,
+- Backend: 121 feature tests, 558 assertions, **all passing on SQL Server 2022,
   MySQL and SQLite**.
 - Frontend: 86 tests passing, type-check clean, production build succeeds.
 - **Browser UI validation completed** by the project team on 2026-08-25 — all
@@ -106,7 +106,11 @@ reports → final output → OneDrive.
 | Module | Status | Priority | Notes |
 | --- | --- | --- | --- |
 | Demo seed data | Completed | P0 | 3 shops · 22 products · 9 devices · 14 audits · 107 counted lines |
-| Backend feature tests | Completed | P1 | 91 tests, 448 assertions, all passing |
+| Backend feature tests | Completed | P1 | 121 tests, 558 assertions, all passing |
+| Unauthenticated API responses | Completed | P0 | A request that does not ask for JSON now returns `401` in the standard envelope instead of `500` with an internal exception name. Closes limitation L-13 |
+| Response security headers | Completed | P0 | `nosniff`, `X-Frame-Options`, `Referrer-Policy` on every response; a source-refusing CSP on API responses; HSTS over HTTPS only. Downloads verified unaffected |
+| Cross-origin configuration | Completed | P0 | Origins come from configuration alone — the hardcoded localhost origins are gone, and an unconfigured deployment allows nothing |
+| Access token expiry | **Pending decision** | P0 | Mechanism built, configurable separately for web and device, covered by tests, and deliberately **unset** — tokens do not expire until a duration is agreed (D-09) |
 | API rate limiting | Completed | P0 | Login throttled per email+origin, authenticated traffic per user, stock import guarded. 429 uses the standard envelope. Verified live against the file cache store |
 | Documentation accuracy | Completed | P1 | docs/02, 03, 05, 13, 14 reconciled against the code on 2026-08-26 |
 | Frontend automated tests | Completed | P1 | 86 Vitest tests: DataTable, useTableQuery, AuthContext, route guards, the Adjust, Verify and Stock Take dialogs, the Final Output / OneDrive share, and the failed-chunk boundary. Closes limitation L-03 |
@@ -116,7 +120,7 @@ reports → final output → OneDrive.
 | Browser UI verification | Completed | P0 | Manual walkthrough performed by the project team on 2026-08-25. All screens and the full end-to-end flow exercised; no functional, UI, navigation or validation issues found |
 | SQL Server verification (core) | Completed | P0 | Migrations, full seed and all 52 core tests run against SQL Server 2022 on 2026-08-26. Three defects found and fixed |
 | SQL Server verification (with Stock Report) | Completed | P0 | Re-run 2026-08-26 after the filtered-index fix; the fix was a compatibility change only and no Stock Report business rule was altered |
-| Cross-engine verification (current suite) | Completed | P0 | **Re-verified 2026-08-27: all 91 tests / 448 assertions pass on SQL Server 2022, MySQL and SQLite**, `migrate:fresh` run on each beforehand |
+| Cross-engine verification (current suite) | Completed | P0 | **Re-verified 2026-08-27: all 121 tests / 558 assertions pass on SQL Server 2022, MySQL and SQLite**, `migrate:fresh` run on each beforehand |
 | Backup and recovery procedure | Completed | P0 | Documented and scripted in [docs/18](docs/18-BACKUP-AND-RECOVERY.md) and `database/scripts/`: SQL Server full/differential/log backups, point-in-time restore, and `verify-restore.sql` checking the application's own invariants. RPO 15 min, RTO 2 h |
 | Backup scripts executed | Completed | P0 | Full cycle run against SQL Server 2022 on 2026-08-26 — backup, verify, restore full+differential+log into a separate database, then all 11 checks passing on the restored copy with all 30 tables matching the source row for row. Detail in docs/18 §13 |
 | Production backup scheduling | Blocked | P0 | Separate from the row above: the scripts work, but nothing schedules them. The application runs no backups — it has no scheduler. Scheduling, storage, monitoring and the pre-production drill belong to the client's infrastructure — D-08 |
@@ -169,6 +173,7 @@ status columns against a repeat.
 | D-05 | OneDrive folder structure | Nothing — a default is in use | Minutes, if a different layout is wanted |
 | D-06 | Production environment | Deployment, not development | Environment-dependent |
 | D-08 | Backup scheduling, storage and the restore drill | Production readiness — the procedure is written, but only the infrastructure can run it | Half a day to schedule the jobs and run the drill |
+| D-09 | Access token expiry windows | Nothing today — tokens simply never expire | Two environment values, no code change |
 
 Detail in [docs/15-ASSUMPTIONS-DEPENDENCIES.md](docs/15-ASSUMPTIONS-DEPENDENCIES.md).
 

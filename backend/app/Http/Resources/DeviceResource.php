@@ -22,6 +22,10 @@ class DeviceResource extends JsonResource
             'serial_number' => $this->serial_number,
             'status' => $this->status,
             'last_submission_at' => $this->last_submission_at?->toIso8601String(),
+            // Whether this terminal can submit on its own. A device that has
+            // never paired still works — its counts leave by Excel.
+            'paired_at' => $this->paired_at?->toIso8601String(),
+            'last_seen_at' => $this->last_seen_at?->toIso8601String(),
             'created_at' => $this->created_at?->toIso8601String(),
         ];
     }

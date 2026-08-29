@@ -29,6 +29,7 @@ import { apiErrorMessage, download, get, post } from '@/services/apiClient'
 import { formatDateTime, formatNumber } from '@/utils/format'
 import { PERMISSIONS } from '@/constants/permissions'
 import type { Audit, FinalOutput } from '@/types'
+import { neutral } from '@/theme'
 
 export function FinalOutputPage() {
   const { can } = useAuth()
@@ -232,6 +233,10 @@ export function FinalOutputPage() {
       ) : null}
 
       <DataTable
+        focusable
+        focusTitle="Final Output"
+        density="compact"
+        columnToggle
         columns={columns}
         rows={data?.data ?? []}
         rowKey={(row) => row.id}
@@ -339,8 +344,8 @@ export function FinalOutputPage() {
             </Alert>
           ) : (
             <Stack direction="row" spacing={1}>
-              <Chip size="small" label={`Driver: ${driver ?? 'demo'}`} sx={{ bgcolor: '#ECEFEE' }} />
-              <Chip size="small" label={`${shareTarget?.record_count ?? 0} records`} sx={{ bgcolor: '#ECEFEE' }} />
+              <Chip size="small" label={`Driver: ${driver ?? 'demo'}`} sx={{ bgcolor: neutral[100] }} />
+              <Chip size="small" label={`${shareTarget?.record_count ?? 0} records`} sx={{ bgcolor: neutral[100] }} />
             </Stack>
           )
         }

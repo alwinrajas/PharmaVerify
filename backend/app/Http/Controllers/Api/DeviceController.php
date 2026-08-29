@@ -24,7 +24,7 @@ class DeviceController extends Controller
 
         $this->applySearch($query, $request, ['device_code', 'description', 'serial_number']);
         $this->applyEquals($query, $request, ['status' => 'status', 'shop_id' => 'shop_id']);
-        $this->applySort($query, $request, ['device_code', 'status', 'last_submission_at', 'created_at', 'id'], 'device_code', 'asc');
+        $this->applySort($query, $request, ['device_code', 'status', 'last_submission_at', 'last_seen_at', 'created_at', 'id'], 'device_code', 'asc');
 
         $paginator = $this->paginate($query, $request);
 

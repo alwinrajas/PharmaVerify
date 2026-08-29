@@ -12,6 +12,7 @@ import {
 } from '@mui/material'
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded'
 import type { ReactNode } from 'react'
+import { alpha } from '@mui/material/styles'
 
 /**
  * The shell every form dialog in the application uses: same header, same
@@ -31,6 +32,7 @@ export function FormDialog({
   children,
   submitColor = 'primary',
   submitDisabled = false,
+  consequence,
 }: {
   open: boolean
   title: string
@@ -45,6 +47,12 @@ export function FormDialog({
   children: ReactNode
   submitColor?: 'primary' | 'error' | 'warning'
   submitDisabled?: boolean
+  /**
+   * What will happen when this is confirmed, stated before the user commits.
+   * Reserved for the actions that change stock or send data outside the
+   * application — verifying, adjusting, recording a take, sharing.
+   */
+  consequence?: ReactNode
 }) {
   return (
     <Dialog open={open} onClose={busy ? undefined : onClose} fullWidth maxWidth={maxWidth}>
@@ -57,6 +65,7 @@ export function FormDialog({
         ) : null}
 
         <IconButton
+          aria-label="Close"
           onClick={onClose}
           disabled={busy}
           size="small"
@@ -71,6 +80,24 @@ export function FormDialog({
           <Alert severity="error" sx={{ mb: 2 }}>
             {error}
           </Alert>
+        ) : null}
+
+        {consequence ? (
+          <Box
+            sx={{
+              mb: 2,
+              px: 1.5,
+              py: 1.25,
+              borderLeft: 3,
+              borderColor: 'warning.main',
+              bgcolor: (theme) => alpha(theme.palette.warning.main, 0.09),
+              borderRadius: '0 6px 6px 0',
+              fontSize: '0.8125rem',
+              color: 'text.primary',
+            }}
+          >
+            {consequence}
+          </Box>
         ) : null}
 
         <Box

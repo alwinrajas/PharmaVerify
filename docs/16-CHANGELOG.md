@@ -253,6 +253,34 @@ Stock Report module stayed on hold.
 | The permission check stays outside the lazy component | Frontend | `RequirePermission` renders synchronously and returns its refusal without rendering the lazy child, so a user who may not see a screen does not download it either |
 
 ---
+
+## v0.2.5 — 2026-08-27
+
+API security hardening. No business rule, schema, API contract or UI changed,
+the Stock Report module stayed on hold, and OneDrive behaviour is untouched.
+
+| Change | Module | Reason |
+| --- | --- | --- |
+| **Response security headers** | Security | The application set none at all. Every response now carries `X-Content-Type-Options: nosniff` — which matters most on the generated workbooks and PDFs, where a browser second-guessing the content type is the actual risk — plus `X-Frame-Options: DENY` and `Referrer-Policy: no-referrer`. API responses also carry a `Content-Security-Policy` refusing every source, which is correct precisely because the API returns JSON and files and never markup; it is deliberately not applied to the one route that does serve a page |
+| `Strict-Transport-Security`, over HTTPS only | Security | Sending it on a plain connection achieves nothing and misrepresents how the response was served. Behind a TLS-terminating proxy it needs `TRUSTED_PROXIES`, which is now supported and documented — that is the one setting here that fails quietly rather than loudly |
+| **Hardcoded origins removed from CORS** | Security | `config/cors.php` permanently allowed `http://localhost:5173` and `http://127.0.0.1:5173` in every deployment, production included. Origins now come from `CORS_ALLOWED_ORIGINS` or `FRONTEND_URL` and nothing else; an unconfigured deployment allows no cross-origin request at all. Development access is unchanged — a developer's own `.env` names the origin |
+| **Token expiry built, deliberately not enabled** | Security | Tokens have never expired, so one on a lost handheld terminal stays valid until revoked by hand. The window is now configuration, set independently for the web and for devices, because a browser signs in again in seconds whereas a terminal expiring part way through a stock take interrupts a count. Both are **unset**, leaving behaviour exactly as before, and the duration is recorded as an open decision — **D-09**. A zero or empty value reads as *no expiry* rather than *expire immediately*, which is tested |
+| 21 security tests | Tests | Headers present on success, failure and downloads; CSP scoped to the API; HSTS only over HTTPS and switchable; production CORS refusing a developer origin while the configured one still works; token windows read correctly and applied per caller; sign-in and rate limiting unaffected; no credential or token in any response header |
+| Limitations **L-12** and **L-13** recorded | Docs | Tokens not expiring, and an API route reached without an `Accept` header answering `500` rather than `401` — the latter pre-dates this work and is not reached by the SPA or the devices |
+
+---
+
+## v0.2.6 — 2026-08-27
+
+One defect in the API error contract. No business rule, schema, API contract,
+UI or OneDrive behaviour changed, and the Stock Report module stayed on hold.
+
+| Change | Module | Reason |
+| --- | --- | --- |
+| **Unauthenticated API requests answer `401`, not `500`** | API | Laravel installs a default guest redirect that resolves `route('login')`. This application defines no such route — signing in belongs to the SPA — and the callback is evaluated *inside* the auth middleware, so the routing error was raised before the exception renderer could answer. A caller that did not ask for JSON therefore received `500` with an internal exception name where it should have received `401`. The SPA and the devices always send `Accept: application/json`, so this was only reachable from a browser opening the URL, a health check or a proxy probe. Closes limitation **L-13** |
+| 9 tests for the unauthenticated response | Tests | A bare request and a browser-style request both refused; the standard envelope; no exception, trace, route name or file path exposed even with `APP_DEBUG` on; the same answer across several guarded endpoints; and the existing JSON, valid-token and invalid-token paths unchanged. Verified by mutation — removing the fix fails six of the nine, and the three that still pass are exactly the ones asserting nothing else moved |
+
+---
 ## Template for later entries
 
 ```
