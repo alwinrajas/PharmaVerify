@@ -50,7 +50,7 @@ export function ItemStockPage() {
           </Typography>
           <Typography variant="caption">
             {row.product_code}
-            {row.barcode ? ` · ${row.barcode}` : ''}
+            {row.gtin ? ` · GTIN ${row.gtin}` : ''}
           </Typography>
         </Box>
       ),
@@ -88,12 +88,31 @@ export function ItemStockPage() {
       ),
     },
     {
+      key: 'whole_qty',
+      label: 'Whole Qty',
+      align: 'right',
+      width: 110,
+      hideBelow: 'lg',
+      // Fractional by design: a part-pack holding is real, so it is shown as
+      // it is rather than rounded to a whole number.
+      render: (row) => formatQuantity(row.whole_qty),
+    },
+    {
       key: 'price',
       label: 'Price',
       align: 'right',
       width: 100,
       hideBelow: 'md',
       render: (row) => formatMoney(row.price),
+    },
+    {
+      key: 'total_cost',
+      label: 'Total Cost',
+      align: 'right',
+      width: 115,
+      hideBelow: 'lg',
+      // As supplied by the ERP. Never recalculated here.
+      render: (row) => (row.total_cost === null ? '—' : formatMoney(row.total_cost)),
     },
     {
       key: 'verification_status',
@@ -125,6 +144,11 @@ export function ItemStockPage() {
       ) : null}
 
       <DataTable
+        focusable
+        focusTitle="Item Stock"
+        density="compact"
+        columnToggle
+        freezeFirstColumn
         columns={columns}
         rows={data?.data ?? []}
         rowKey={(row) => row.id}

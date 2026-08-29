@@ -32,12 +32,18 @@ class StockReportReader
     /**
      * Required columns per sheet, as normalised headings.
      *
+     * These are the mappings the business has confirmed it needs, so a report
+     * missing one is rejected before anything is written rather than imported
+     * with a silently empty column. HIGHERQTY is deliberately absent: whole
+     * quantity is `LOWERQTY / FACTOR`, so a report that omits it can still be
+     * imported correctly from the two columns that are required.
+     *
      * @var array<string, array<int, string>>
      */
     private const REQUIRED_COLUMNS = [
-        self::SHEET_STOCK => ['inventlocationid', 'itemid', 'inventbatchid', 'lowerqty'],
+        self::SHEET_STOCK => ['inventlocationid', 'itemid', 'inventbatchid', 'lowerqty', 'totalcost'],
         self::SHEET_BATCHES => ['itemid', 'inventbatchid', 'itembarcode'],
-        self::SHEET_ITEMS => ['itemid', 'itemname'],
+        self::SHEET_ITEMS => ['itemid', 'itemname', 'salesprice', 'factor', 'globaltradeitemnumber'],
     ];
 
     /**
@@ -46,14 +52,31 @@ class StockReportReader
      * Used to decide between this workflow and the older flat single-sheet
      * import, so both file shapes keep working.
      */
-    public function looksLikeStockReport(string $path): bool
+    /**
+     * The workbook's sheet names, as written.
+     *
+     * @return array<int, string>
+     */
+    public function sheetNames(string $path): array
     {
         try {
-            $names = array_map(
-                fn (array $info) => strtolower(trim($info['worksheetName'])),
+            return array_values(array_map(
+                fn (array $info) => (string) $info['worksheetName'],
                 $this->reader($path)->listWorksheetInfo($path)
-            );
+            ));
         } catch (Throwable) {
+            return [];
+        }
+    }
+
+    public function looksLikeStockReport(string $path): bool
+    {
+        $names = array_map(
+            fn (string $name) => strtolower(trim($name)),
+            $this->sheetNames($path)
+        );
+
+        if ($names === []) {
             return false;
         }
 

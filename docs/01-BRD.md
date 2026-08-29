@@ -81,10 +81,20 @@ User Management, Settings, Dashboard.
 > neither should be treated as a settled requirement until that arrives.
 > BR-01 to BR-12 are confirmed and unaffected.
 >
-> Two further Stock Report decisions are not recorded as rules here at all,
-> because they have not been confirmed: which column carries the system quantity,
-> and which price the import should carry. See
-> `15-ASSUMPTIONS-DEPENDENCIES.md` D-07 and `17-STOCK-REPORT-IMPORT.md` §6.
+> Two further Stock Report decisions sit behind these rules without appearing as
+> numbered rules of their own, and they are **not** in the same position as each
+> other.
+>
+> **Which column carries the system quantity** (`LOWERQTY`) was agreed with the
+> business on 2026-08-26 and stands exactly where BR-13 and BR-14 do: implemented,
+> and awaiting final written sign-off. It is recorded as confirmed with the
+> business in `17-STOCK-REPORT-IMPORT.md` §6.
+>
+> **Which price the import carries** (`SALESPRICE`, falling back to
+> `COSTPERINVUNIT`) is different. It is our judgement, made so the module could be
+> finished, and it has not been put to the client at all.
+>
+> See `15-ASSUMPTIONS-DEPENDENCIES.md` D-07 and `17-STOCK-REPORT-IMPORT.md` §6.
 
 ## 7. Data Requirements
 

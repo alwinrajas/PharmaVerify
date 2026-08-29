@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import { HttpResponse, http } from 'msw'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { FinalOutputPage } from './FinalOutputPage'
 import { AuthProvider } from '@/features/auth/AuthContext'
 import { tokenStore } from '@/services/apiClient'

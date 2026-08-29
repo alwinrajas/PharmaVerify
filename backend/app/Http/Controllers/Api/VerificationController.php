@@ -54,7 +54,7 @@ class VerificationController extends Controller
         $this->applySort(
             $query,
             $request,
-            ['product_code', 'description', 'system_qty', 'physical_qty', 'variance_qty', 'batch', 'verification_status', 'id'],
+            ['product_code', 'description', 'system_qty', 'physical_qty', 'loose_qty', 'variance_qty', 'batch', 'verification_status', 'id'],
             'id',
             'asc'
         );
@@ -78,6 +78,7 @@ class VerificationController extends Controller
 
         $validated = $request->validate([
             'physical_qty' => ['sometimes', 'numeric', 'min:0', 'max:99999999'],
+            'loose_qty' => ['sometimes', 'numeric', 'min:0', 'max:99999999'],
             'batch' => ['sometimes', 'nullable', 'string', 'max:60'],
             'expiry_date' => ['sometimes', 'nullable', 'date'],
             'shelf_location' => ['sometimes', 'nullable', 'string', 'max:100'],
@@ -85,6 +86,7 @@ class VerificationController extends Controller
             'mark_verified' => ['sometimes', 'boolean'],
         ], [
             'physical_qty.min' => 'A physical quantity cannot be negative.',
+            'loose_qty.min' => 'A loose quantity cannot be negative.',
         ]);
 
         $markVerified = (bool) ($validated['mark_verified'] ?? true);

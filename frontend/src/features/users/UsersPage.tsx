@@ -28,6 +28,7 @@ import { useTableQuery } from '@/hooks/useTableQuery'
 import { apiErrorMessage, get, post, put } from '@/services/apiClient'
 import { formatDateTime } from '@/utils/format'
 import type { ManagedUser } from '@/types'
+import { neutral } from '@/theme'
 
 interface RolesResponse {
   roles: Array<{ id: number; name: string; permissions: string[] }>
@@ -173,7 +174,7 @@ export function UsersPage() {
         ) : (
           <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap', gap: 0.5 }}>
             {(user.shops ?? []).map((shop) => (
-              <Chip key={shop.id} size="small" label={shop.shop_code} sx={{ bgcolor: '#ECEFEE' }} />
+              <Chip key={shop.id} size="small" label={shop.shop_code} sx={{ bgcolor: neutral[100] }} />
             ))}
           </Stack>
         ),
@@ -201,13 +202,14 @@ export function UsersPage() {
       render: (user) => (
         <Stack direction="row" spacing={0.25} justifyContent="flex-end">
           <Tooltip title="Edit user">
-            <IconButton size="small" onClick={() => openEdit(user)}>
+            <IconButton size="small" aria-label="Edit user" onClick={() => openEdit(user)}>
               <EditRoundedIcon fontSize="small" />
             </IconButton>
           </Tooltip>
           <Tooltip title="Reset password">
             <IconButton
               size="small"
+              aria-label="Reset this user's password"
               onClick={() => {
                 setResetTarget(user)
                 setNewPassword('')
@@ -218,7 +220,11 @@ export function UsersPage() {
             </IconButton>
           </Tooltip>
           <Tooltip title={user.status === 'active' ? 'Deactivate' : 'Activate'}>
-            <IconButton size="small" onClick={() => toggleMutation.mutate(user)}>
+            <IconButton
+              size="small"
+              aria-label={user.status === 'active' ? 'Deactivate user' : 'Activate user'}
+              onClick={() => toggleMutation.mutate(user)}
+            >
               {user.status === 'active' ? (
                 <ToggleOnRoundedIcon fontSize="small" color="success" />
               ) : (
@@ -245,6 +251,9 @@ export function UsersPage() {
       />
 
       <DataTable
+        focusable
+        focusTitle="Users"
+        columnToggle
         columns={columns}
         rows={data?.data ?? []}
         rowKey={(user) => user.id}
@@ -415,7 +424,7 @@ export function UsersPage() {
               </Typography>
               <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 0.5 }}>
                 {(roleData.roles.find((role) => role.name === form.role)?.permissions ?? []).map((permission) => (
-                  <Chip key={permission} size="small" label={permission} sx={{ bgcolor: '#ECEFEE', fontWeight: 400 }} />
+                  <Chip key={permission} size="small" label={permission} sx={{ bgcolor: neutral[100], fontWeight: 400 }} />
                 ))}
               </Stack>
             </Box>

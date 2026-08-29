@@ -17,6 +17,7 @@ interface StockTakeForm {
   product_code: string
   description: string
   physical_qty: string
+  loose_qty: string
   uom: string
   batch: string
   expiry_date: string
@@ -32,6 +33,7 @@ const emptyForm: StockTakeForm = {
   product_code: '',
   description: '',
   physical_qty: '',
+  loose_qty: '',
   uom: 'EA',
   batch: '',
   expiry_date: '',
@@ -47,12 +49,15 @@ export function StockTakeDialog({
   open,
   onClose,
   fromLine,
+  sessionId = null,
   defaultShopId,
   onSaved,
 }: {
   open: boolean
   onClose: () => void
   fromLine?: AuditLine | null
+  /** The open cycle, when the shop has one. A take may also stand alone. */
+  sessionId?: number | null
   defaultShopId?: string
   onSaved?: () => void
 }) {
@@ -76,6 +81,7 @@ export function StockTakeDialog({
         product_code: fromLine.product_code ?? '',
         description: fromLine.description ?? '',
         physical_qty: String(fromLine.physical_qty ?? ''),
+        loose_qty: String(fromLine.loose_qty ?? 0),
         uom: fromLine.uom ?? 'EA',
         batch: fromLine.batch ?? '',
         expiry_date: fromLine.expiry_date ?? '',
@@ -99,6 +105,8 @@ export function StockTakeDialog({
         product_code: form.product_code || null,
         description: form.description,
         physical_qty: Number(form.physical_qty || 0),
+        stock_take_session_id: sessionId,
+        loose_qty: Number(form.loose_qty || 0),
         uom: form.uom,
         batch: form.batch || null,
         expiry_date: form.expiry_date || null,
@@ -193,6 +201,16 @@ export function StockTakeDialog({
           size="small"
           fullWidth
           required
+          slotProps={{ htmlInput: { min: 0, step: 'any' } }}
+        />
+        <TextField
+          label="Loose Quantity"
+          type="number"
+          value={form.loose_qty}
+          onChange={(event) => setForm({ ...form, loose_qty: event.target.value })}
+          size="small"
+          fullWidth
+          helperText="Counted outside a full pack, alongside the whole units."
           slotProps={{ htmlInput: { min: 0, step: 'any' } }}
         />
         <TextField

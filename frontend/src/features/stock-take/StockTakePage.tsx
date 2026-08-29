@@ -1,7 +1,8 @@
 import { Alert, Box, Button, Card, CardContent, Divider, Stack, Typography } from '@mui/material'
 import AddRoundedIcon from '@mui/icons-material/AddRounded'
 import PlaylistAddCheckRoundedIcon from '@mui/icons-material/PlaylistAddCheckRounded'
-import { useQuery } from '@tanstack/react-query'
+import DoneAllRoundedIcon from '@mui/icons-material/DoneAllRounded'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { DataTable, type DataTableColumn } from '@/components/DataTable'
 import { DateFilter, FilterBar, SearchBar, SelectFilter } from '@/components/filters'
@@ -10,11 +11,13 @@ import { StatusBadge } from '@/components/StatusBadge'
 import { useAuth } from '@/features/auth/AuthContext'
 import { useShopOptions } from '@/hooks/useOptions'
 import { useTableQuery } from '@/hooks/useTableQuery'
-import { apiErrorMessage, get } from '@/services/apiClient'
+import { useSnackbar } from 'notistack'
+import { apiErrorMessage, get, post } from '@/services/apiClient'
 import { formatDate, formatDateTime, formatQuantity } from '@/utils/format'
 import { PERMISSIONS } from '@/constants/permissions'
-import type { AuditLine, StockTake } from '@/types'
+import type { AuditLine, StockTake, StockTakeSession } from '@/types'
 import { StockTakeDialog } from './StockTakeDialog'
+import { semantic } from '@/theme'
 
 export function StockTakePage() {
   const { can } = useAuth()
@@ -23,6 +26,49 @@ export function StockTakePage() {
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [fromLine, setFromLine] = useState<AuditLine | null>(null)
+
+  const queryClient = useQueryClient()
+  const { enqueueSnackbar } = useSnackbar()
+
+  /**
+   * The cycles this shop is running.
+   *
+   * A cycle is optional: a take can still be recorded on its own, which is what
+   * every take predating cycles is. Choosing a shop is what makes one openable,
+   * because a reference is issued per shop.
+   */
+  const shopId = table.filters.shop_id ?? ''
+
+  const { data: sessions } = useQuery({
+    queryKey: ['stock-take-sessions', shopId],
+    queryFn: async () =>
+      get<StockTakeSession[]>('/stock-take-sessions', {
+        per_page: 10,
+        ...(shopId ? { shop_id: shopId } : {}),
+        status: 'in_progress',
+      }),
+  })
+
+  const openSession = (sessions?.data ?? [])[0] ?? null
+
+  const startMutation = useMutation({
+    mutationFn: async () => post<StockTakeSession>('/stock-take-sessions', { shop_id: shopId }),
+    onSuccess: (response) => {
+      enqueueSnackbar(response.message ?? 'Stock take opened.', { variant: 'success' })
+      void queryClient.invalidateQueries({ queryKey: ['stock-take-sessions'] })
+    },
+    onError: (caught) => enqueueSnackbar(apiErrorMessage(caught), { variant: 'error' }),
+  })
+
+  const completeMutation = useMutation({
+    mutationFn: async (id: number) => post<StockTakeSession>(`/stock-take-sessions/${id}/complete`),
+    onSuccess: (response) => {
+      enqueueSnackbar(response.message ?? 'Stock take completed.', { variant: 'success' })
+      void queryClient.invalidateQueries({ queryKey: ['stock-take-sessions'] })
+      void queryClient.invalidateQueries({ queryKey: ['stock-takes'] })
+    },
+    onError: (caught) => enqueueSnackbar(apiErrorMessage(caught), { variant: 'error' }),
+  })
 
   const { data, isFetching, isError, error, refetch } = useQuery({
     queryKey: ['stock-takes', table.params],
@@ -43,13 +89,31 @@ export function StockTakePage() {
       key: 'taken_at',
       label: 'Recorded',
       sortable: true,
-      width: 180,
+      width: 200,
       render: (row) => (
         <Box>
           <Typography variant="body2">{formatDateTime(row.taken_at)}</Typography>
           <Typography variant="caption">{row.taken_by ?? '—'}</Typography>
         </Box>
       ),
+    },
+    {
+      // A take belongs to a sweep, or was recorded on its own. Both are valid,
+      // and every take predating stock-take cycles is the latter.
+      key: 'take_ref',
+      label: 'Stock Take',
+      width: 165,
+      render: (row) =>
+        row.take_ref ? (
+          <Typography
+            variant="body2"
+            sx={{ fontFamily: 'ui-monospace, monospace', fontSize: '0.8125rem', fontWeight: 600 }}
+          >
+            {row.take_ref}
+          </Typography>
+        ) : (
+          <Typography variant="caption">Ad hoc</Typography>
+        ),
     },
     {
       key: 'shop_code',
@@ -92,6 +156,14 @@ export function StockTakePage() {
       ),
     },
     {
+      key: 'loose_qty',
+      label: 'Loose Qty',
+      sortable: true,
+      align: 'right',
+      width: 105,
+      render: (row) => (Number(row.loose_qty) === 0 ? '—' : formatQuantity(row.loose_qty)),
+    },
+    {
       key: 'expiry_date',
       label: 'Expiry',
       width: 120,
@@ -118,19 +190,50 @@ export function StockTakePage() {
         crumbs={[{ label: 'Stock Verification' }, { label: 'Stock Take' }]}
         actions={
           can(PERMISSIONS.stockTakeCreate) ? (
-            <Button
-              variant="contained"
-              startIcon={<AddRoundedIcon />}
-              onClick={() => {
-                setFromLine(null)
-                setDialogOpen(true)
-              }}
-            >
-              Record Stock Take
-            </Button>
+            <Stack direction="row" spacing={1.5}>
+              {openSession ? (
+                <Button
+                  variant="outlined"
+                  startIcon={<DoneAllRoundedIcon />}
+                  disabled={completeMutation.isPending}
+                  onClick={() => completeMutation.mutate(openSession.id)}
+                >
+                  Complete {openSession.take_ref}
+                </Button>
+              ) : (
+                <Button
+                  variant="outlined"
+                  startIcon={<PlaylistAddCheckRoundedIcon />}
+                  disabled={shopId === '' || startMutation.isPending}
+                  onClick={() => startMutation.mutate()}
+                >
+                  {startMutation.isPending ? 'Opening…' : 'Start Stock Take'}
+                </Button>
+              )}
+              <Button
+                variant="contained"
+                startIcon={<AddRoundedIcon />}
+                onClick={() => {
+                  setFromLine(null)
+                  setDialogOpen(true)
+                }}
+              >
+                Record Stock Take
+              </Button>
+            </Stack>
           ) : null
         }
       />
+
+      {openSession ? (
+        <Alert severity="success" sx={{ mb: 2.5 }}>
+          <strong>{openSession.take_ref}</strong> is open for this shop. Lines recorded now are counted against it.
+        </Alert>
+      ) : shopId === '' ? (
+        <Alert severity="info" sx={{ mb: 2.5 }}>
+          Choose a shop to open a stock take cycle. A reference is issued per shop.
+        </Alert>
+      ) : null}
 
       <Alert severity="info" sx={{ mb: 2.5 }}>
         A stock take never creates a new item in the item master. The entry is kept separately so the business can
@@ -138,7 +241,7 @@ export function StockTakePage() {
       </Alert>
 
       {candidateRows.length > 0 ? (
-        <Card sx={{ mb: 2.5, borderColor: '#E5C98A' }}>
+        <Card sx={{ mb: 2.5, borderColor: semantic.warning.bg }}>
           <CardContent sx={{ p: 2.5 }}>
             <Stack direction="row" spacing={1.25} alignItems="center" sx={{ mb: 1.5 }}>
               <PlaylistAddCheckRoundedIcon fontSize="small" sx={{ color: 'warning.main' }} />
@@ -186,6 +289,10 @@ export function StockTakePage() {
       ) : null}
 
       <DataTable
+        focusable
+        focusTitle="Stock Take"
+        density="compact"
+        columnToggle
         columns={columns}
         rows={data?.data ?? []}
         rowKey={(row) => row.id}
@@ -227,6 +334,7 @@ export function StockTakePage() {
       />
 
       <StockTakeDialog
+        sessionId={openSession?.id ?? null}
         open={dialogOpen}
         fromLine={fromLine}
         defaultShopId={table.filters.shop_id}

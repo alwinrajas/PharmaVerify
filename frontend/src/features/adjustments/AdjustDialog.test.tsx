@@ -34,7 +34,8 @@ describe('AdjustDialog', () => {
     expect(screen.getByText('Atorvastatin 10mg Tablet')).toBeInTheDocument()
     expect(screen.getByText('125')).toBeInTheDocument()
     expect(screen.getByText('120')).toBeInTheDocument()
-    expect(screen.getByText('-5')).toBeInTheDocument()
+    // 125 held against 120 counted is five short, and short is positive.
+    expect(screen.getByText('5')).toBeInTheDocument()
   })
 
   it('warns plainly that the change is immediate and unapproved', () => {

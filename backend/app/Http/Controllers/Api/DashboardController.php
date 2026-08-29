@@ -19,6 +19,28 @@ use Illuminate\Http\Request;
 
 class DashboardController extends Controller
 {
+    /**
+     * Aggregate counts for the sign-in screen.
+     *
+     * Reachable without a token, so it carries nothing but totals — no shop
+     * names, no product codes, no user details. Four numbers that say the
+     * system is populated and working, and give away nothing about what is in
+     * it.
+     */
+    public function publicStats(): JsonResponse
+    {
+        return ApiResponse::success([
+            'total_shops' => Shop::where('status', 'active')->count(),
+            'total_items' => Item::where('status', 'active')->count(),
+            'stock_records' => ItemStock::count(),
+            'completed_audits' => Audit::whereIn('status', [
+                Audit::STATUS_VERIFIED,
+                Audit::STATUS_ADJUSTED,
+                Audit::STATUS_CLOSED,
+            ])->count(),
+        ]);
+    }
+
     public function summary(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -47,10 +69,13 @@ class DashboardController extends Controller
                     ->count(),
             ],
 
+            // Variance is System - (Physical + Loose), so a positive figure is
+            // a shortage. The keys say short and excess rather than positive
+            // and negative so the meaning cannot be read the wrong way round.
             'variance_breakdown' => [
-                'positive' => (clone $lines)->where('variance_qty', '>', 0)->count(),
-                'negative' => (clone $lines)->where('variance_qty', '<', 0)->count(),
-                'zero' => (clone $lines)->where('variance_qty', '=', 0)->count(),
+                'short' => (clone $lines)->where('variance_qty', '>', 0)->count(),
+                'excess' => (clone $lines)->where('variance_qty', '<', 0)->count(),
+                'matched' => (clone $lines)->where('variance_qty', '=', 0)->count(),
             ],
 
             'recent_submissions' => HhtSubmissionResource::collection(

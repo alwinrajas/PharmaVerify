@@ -25,6 +25,8 @@ export interface NavItem {
   permission?: string | string[]
   /** Highlights the parent entry for nested routes such as audit details. */
   match?: string
+  /** Short purpose line, shown beside the screen name in the top bar. */
+  context?: string
 }
 
 export interface NavSection {
@@ -38,42 +40,114 @@ export interface NavSection {
  */
 export const navigation: NavSection[] = [
   {
-    items: [{ label: 'Dashboard', to: '/', icon: DashboardRoundedIcon }],
+    items: [{ label: 'Dashboard', to: '/', icon: DashboardRoundedIcon, context: 'Where verification stands today' }],
   },
   {
     heading: 'Master',
     items: [
-      { label: 'Shops', to: '/shops', icon: StorefrontRoundedIcon, permission: PERMISSIONS.shopsView },
-      { label: 'Items', to: '/items', icon: MedicationRoundedIcon, permission: PERMISSIONS.itemsView },
-      { label: 'HHT Devices', to: '/devices', icon: TabletAndroidRoundedIcon, permission: PERMISSIONS.devicesView },
-      { label: 'Stock Import', to: '/stock-import', icon: UploadFileRoundedIcon, permission: PERMISSIONS.stockView },
+      { label: 'Shops', to: '/shops', icon: StorefrontRoundedIcon, permission: PERMISSIONS.shopsView, context: 'Shop records and user access' },
+      { label: 'Items', to: '/items', icon: MedicationRoundedIcon, permission: PERMISSIONS.itemsView, context: 'Pharmacy product master' },
+      { label: 'HHT Devices', to: '/devices', icon: TabletAndroidRoundedIcon, permission: PERMISSIONS.devicesView, context: 'Handheld terminals per shop' },
+      { label: 'Stock Import', to: '/stock-import', icon: UploadFileRoundedIcon, permission: PERMISSIONS.stockView, context: 'Excel upload that replaces shop stock' },
     ],
   },
   {
     heading: 'Stock Verification',
     items: [
-      { label: 'Item Stock', to: '/item-stock', icon: Inventory2RoundedIcon, permission: PERMISSIONS.stockView },
-      { label: 'HHT Submissions', to: '/hht', icon: PhonelinkRingRoundedIcon, permission: PERMISSIONS.hhtView },
-      { label: 'Stock Audit', to: '/audits', icon: FactCheckRoundedIcon, permission: PERMISSIONS.auditsView },
-      { label: 'Verification', to: '/verification', icon: RuleRoundedIcon, permission: PERMISSIONS.auditsView },
-      { label: 'Variance', to: '/variance', icon: CompareArrowsRoundedIcon, permission: PERMISSIONS.varianceView },
-      { label: 'Stock Adjustment', to: '/adjustments', icon: TuneRoundedIcon, permission: PERMISSIONS.adjustmentsView },
-      { label: 'Stock Take', to: '/stock-take', icon: PlaylistAddCheckRoundedIcon, permission: PERMISSIONS.stockTakeView },
+      { label: 'Item Stock', to: '/item-stock', icon: Inventory2RoundedIcon, permission: PERMISSIONS.stockView, context: 'System stock by shop, batch and expiry' },
+      { label: 'HHT Submissions', to: '/hht', icon: PhonelinkRingRoundedIcon, permission: PERMISSIONS.hhtView, context: 'Counts received from handheld devices' },
+      { label: 'Stock Audit', to: '/audits', icon: FactCheckRoundedIcon, permission: PERMISSIONS.auditsView, context: 'Counted lines by shop, device and audit number' },
+      { label: 'Verification', to: '/verification', icon: RuleRoundedIcon, permission: PERMISSIONS.auditsView, context: 'Review counted lines against system stock' },
+      { label: 'Variance', to: '/variance', icon: CompareArrowsRoundedIcon, permission: PERMISSIONS.varianceView, context: 'Physical count compared with system stock' },
+      { label: 'Stock Adjustment', to: '/adjustments', icon: TuneRoundedIcon, permission: PERMISSIONS.adjustmentsView, context: 'Post variance back to system stock' },
+      { label: 'Stock Take', to: '/stock-take', icon: PlaylistAddCheckRoundedIcon, permission: PERMISSIONS.stockTakeView, context: 'Counts recorded outside a device audit' },
     ],
   },
   {
     heading: 'Output',
     items: [
-      { label: 'Reports', to: '/reports', icon: AssessmentRoundedIcon, permission: PERMISSIONS.reportsView },
-      { label: 'Final Output', to: '/final-output', icon: CloudUploadRoundedIcon, permission: PERMISSIONS.finalOutputView },
+      { label: 'Reports', to: '/reports', icon: AssessmentRoundedIcon, permission: PERMISSIONS.reportsView, context: 'Nine standard reports, Excel and PDF' },
+      { label: 'Final Output', to: '/final-output', icon: CloudUploadRoundedIcon, permission: PERMISSIONS.finalOutputView, context: 'Generate the output file and share to OneDrive' },
     ],
   },
   {
     heading: 'Administration',
     items: [
-      { label: 'Users', to: '/users', icon: GroupRoundedIcon, permission: PERMISSIONS.usersManage },
-      { label: 'Activity Log', to: '/activity-log', icon: HistoryRoundedIcon, permission: PERMISSIONS.activityView },
-      { label: 'Settings', to: '/settings', icon: SettingsRoundedIcon },
+      { label: 'Users', to: '/users', icon: GroupRoundedIcon, permission: PERMISSIONS.usersManage, context: 'Accounts, roles and shop assignments' },
+      { label: 'Activity Log', to: '/activity-log', icon: HistoryRoundedIcon, permission: PERMISSIONS.activityView, context: 'Who changed what, and when' },
+      { label: 'Settings', to: '/settings', icon: SettingsRoundedIcon, context: 'Application configuration' },
     ],
   },
 ]
+
+/** What the sticky top bar shows for the current URL. */
+export interface ScreenIdentity {
+  label: string
+  icon: SvgIconComponent
+  section: string
+  context?: string
+}
+
+/** Reachable by URL, but deliberately absent from the sidebar. */
+const UNLISTED_SCREENS: Array<ScreenIdentity & { to: string }> = [
+  {
+    to: '/hht/simulator',
+    label: 'HHT Simulator',
+    icon: PhonelinkRingRoundedIcon,
+    section: 'Stock Verification',
+    context: 'Send a test count as a handheld device',
+  },
+  {
+    to: '/hht/import',
+    label: 'Import HHT Export',
+    icon: UploadFileRoundedIcon,
+    section: 'Stock Verification',
+    context: "Read a handheld's Excel export",
+  },
+]
+
+const UNKNOWN_SCREEN: ScreenIdentity = {
+  label: 'Pharmacy Stock Verification',
+  icon: Inventory2RoundedIcon,
+  section: 'PharmaVerify',
+}
+
+/**
+ * The screen a URL belongs to.
+ *
+ * A page's own heading scrolls away on a long table; the top bar does not, so
+ * it carries the same identity all the way down. Matching mirrors the sidebar
+ * exactly, with the longest path winning — so `/hht/simulator` resolves to the
+ * simulator rather than the submissions list it sits under, and `/audits/12`
+ * resolves to Stock Audit rather than falling through to the dashboard.
+ */
+export function resolveScreen(pathname: string): ScreenIdentity {
+  const unlisted = UNLISTED_SCREENS.find(
+    (screen) => pathname === screen.to || pathname.startsWith(`${screen.to}/`),
+  )
+  if (unlisted) return unlisted
+
+  let best: ScreenIdentity | null = null
+  let bestLength = -1
+
+  for (const section of navigation) {
+    for (const item of section.items) {
+      const matched =
+        item.to === '/'
+          ? pathname === '/'
+          : pathname === item.to || pathname.startsWith(`${item.to}/`)
+
+      if (matched && item.to.length > bestLength) {
+        bestLength = item.to.length
+        best = {
+          label: item.label,
+          icon: item.icon,
+          section: section.heading ?? 'Overview',
+          context: item.context,
+        }
+      }
+    }
+  }
+
+  return best ?? UNKNOWN_SCREEN
+}

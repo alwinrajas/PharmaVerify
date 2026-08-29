@@ -1,6 +1,7 @@
 import {
   AppBar,
   Avatar,
+  Badge,
   Box,
   Chip,
   Divider,
@@ -18,16 +19,47 @@ import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded'
 import PersonRoundedIcon from '@mui/icons-material/PersonRounded'
 import StorefrontRoundedIcon from '@mui/icons-material/StorefrontRounded'
 import { useState } from 'react'
-import { Outlet, useNavigate } from 'react-router-dom'
+import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/features/auth/AuthContext'
-import { SIDEBAR_WIDTH, Sidebar } from './Sidebar'
+import { SIDEBAR_RAIL_WIDTH, SIDEBAR_WIDTH, Sidebar } from './Sidebar'
+import { resolveScreen } from './navigation'
 
 export function AppLayout() {
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
+
+  // The bar is sticky, so it keeps naming the screen once the page heading has
+  // scrolled out of view.
+  const screen = resolveScreen(location.pathname)
+  const ScreenIcon = screen.icon
 
   const [mobileOpen, setMobileOpen] = useState(false)
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null)
+
+  // Remembered per browser so the choice survives a reload. Storage can throw
+  // in a private window, so every access is guarded.
+  const [collapsed, setCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem('pharmaverify.nav.collapsed') === '1'
+    } catch {
+      return false
+    }
+  })
+
+  function toggleCollapsed() {
+    setCollapsed((current) => {
+      const next = !current
+      try {
+        localStorage.setItem('pharmaverify.nav.collapsed', next ? '1' : '0')
+      } catch {
+        /* a preference is not worth failing a render over */
+      }
+      return next
+    })
+  }
+
+  const navWidth = collapsed ? SIDEBAR_RAIL_WIDTH : SIDEBAR_WIDTH
 
   async function handleSignOut() {
     setMenuAnchor(null)
@@ -47,10 +79,15 @@ export function AppLayout() {
       {/* Permanent sidebar from the large breakpoint up. */}
       <Box
         component="nav"
-        sx={{ width: { lg: SIDEBAR_WIDTH }, flexShrink: { lg: 0 }, display: { xs: 'none', lg: 'block' } }}
+        sx={{
+          width: { lg: navWidth },
+          flexShrink: { lg: 0 },
+          display: { xs: 'none', lg: 'block' },
+          transition: 'width 160ms ease',
+        }}
       >
-        <Box sx={{ position: 'fixed', top: 0, bottom: 0, width: SIDEBAR_WIDTH }}>
-          <Sidebar />
+        <Box sx={{ position: 'fixed', top: 0, bottom: 0, width: navWidth, transition: 'width 160ms ease' }}>
+          <Sidebar collapsed={collapsed} onToggleCollapse={toggleCollapsed} />
         </Box>
       </Box>
 
@@ -76,22 +113,40 @@ export function AppLayout() {
             borderColor: 'divider',
           }}
         >
-          <Toolbar sx={{ gap: 1.5, minHeight: { xs: 58, sm: 62 } }}>
+          <Toolbar sx={{ gap: 1.5, minHeight: { xs: 56, sm: 58 } }}>
             <IconButton
+              aria-label="Open navigation menu"
               onClick={() => setMobileOpen(true)}
               edge="start"
               sx={{ display: { lg: 'none' } }}
-              aria-label="Open navigation"
             >
               <MenuRoundedIcon />
             </IconButton>
 
+            <Box
+              sx={{
+                width: 34,
+                height: 34,
+                borderRadius: 1.5,
+                display: { xs: 'none', sm: 'grid' },
+                placeItems: 'center',
+                bgcolor: 'rgba(15, 93, 76, 0.08)',
+                color: 'primary.main',
+                flexShrink: 0,
+              }}
+            >
+              <ScreenIcon fontSize="small" />
+            </Box>
+
             <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-              <Typography variant="subtitle1" noWrap sx={{ display: { xs: 'none', sm: 'block' } }}>
-                Pharmacy Stock Verification
+              <Typography
+                sx={{ fontSize: '0.9375rem', fontWeight: 600, lineHeight: 1.2 }}
+                noWrap
+              >
+                {screen.label}
               </Typography>
-              <Typography variant="caption" sx={{ display: { xs: 'none', md: 'block' } }}>
-                Master → Stock → HHT → Audit → Verification → Variance → Adjustment → Reports
+              <Typography variant="caption" noWrap sx={{ display: { xs: 'none', md: 'block' } }}>
+                {screen.context ? `${screen.section} · ${screen.context}` : screen.section}
               </Typography>
             </Box>
 
@@ -110,10 +165,32 @@ export function AppLayout() {
               </Tooltip>
             ) : null}
 
-            <IconButton onClick={(event) => setMenuAnchor(event.currentTarget)} size="small" aria-label="Account">
-              <Avatar sx={{ width: 34, height: 34, bgcolor: 'primary.main', fontSize: '0.8125rem', fontWeight: 700 }}>
-                {initials}
-              </Avatar>
+            <IconButton
+              onClick={(event) => setMenuAnchor(event.currentTarget)}
+              size="small"
+              aria-label="Account and sign out"
+              sx={{ ml: 0.25 }}
+            >
+              <Badge
+                overlap="circular"
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                variant="dot"
+                sx={{
+                  '& .MuiBadge-dot': {
+                    bgcolor: 'success.main',
+                    boxShadow: '0 0 0 2px #fff',
+                    height: 9,
+                    minWidth: 9,
+                    borderRadius: '50%',
+                  },
+                }}
+              >
+                <Avatar
+                  sx={{ width: 32, height: 32, bgcolor: 'primary.main', fontSize: '0.75rem', fontWeight: 700 }}
+                >
+                  {initials}
+                </Avatar>
+              </Badge>
             </IconButton>
 
             <Menu
@@ -154,7 +231,10 @@ export function AppLayout() {
           </Toolbar>
         </AppBar>
 
-        <Box component="main" sx={{ flexGrow: 1, p: { xs: 2, sm: 3 }, maxWidth: 1600, width: '100%', mx: 'auto' }}>
+        <Box
+          component="main"
+          sx={{ flexGrow: 1, px: { xs: 2, sm: 2.5 }, py: { xs: 2, sm: 2.5 }, maxWidth: 1720, width: '100%', mx: 'auto' }}
+        >
           <Outlet />
         </Box>
       </Box>

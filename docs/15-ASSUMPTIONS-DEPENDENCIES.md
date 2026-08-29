@@ -107,10 +107,53 @@ described every report in one place so a column is added by editing a definition
 **Alternative if wanted.** Per-shop or per-month sub-folders — a change to
 `GraphOneDriveUploader::itemPath()`.
 
-### D-06 · Production environment — **Open**
+### D-06 · Production environment — **Partly decided 2026-08-27**
 
-Hosting, TLS certificates, backup schedule and network egress to Microsoft Graph
-are all environment decisions. `12-DEPLOYMENT-GUIDE.md` states what is required.
+**Decided.** The first client deployment is a **single on-premises PC, single
+user** — one machine running the database, the API and the frontend together.
+No server, no cloud instance. SQL Server Express is sufficient. The application
+needs no change to run this way; see the *Deployment profile* section at the top
+of `12-DEPLOYMENT-GUIDE.md` for what the profile does and does not require.
+
+**Still open.**
+
+| # | Item | Why it matters |
+| --- | --- | --- |
+| 1 | **Do the handheld terminals submit to this PC?** | Decides whether inbound network access, a device-trusted certificate and an always-on machine are needed at all |
+| 2 | Windows edition on the PC | IIS requires Windows 10/11 Pro or better |
+| 3 | Certificate source, if devices submit | Internal CA, or a public certificate for a name that resolves on the LAN. A self-signed certificate is rejected by devices unless installed on each |
+| 4 | Where off-machine backup copies go | On one PC this is the difference between a recoverable failure and a total loss — see D-08 |
+
+Network egress to Microsoft Graph is still required if OneDrive sharing is used,
+whichever way item 1 is answered.
+
+### D-09 · Access token lifetime — **Open**
+
+**Situation.** Tokens issued at sign-in have never expired. A token on a lost or
+stolen handheld terminal therefore stays valid until an administrator revokes it,
+and nothing in the audit trail marks its use as unusual — the token is genuine.
+
+**What we did.** Built the expiry as configuration rather than choosing a value.
+Two windows are set independently, `AUTH_TOKEN_WEB_EXPIRY_MINUTES` and
+`AUTH_TOKEN_DEVICE_EXPIRY_MINUTES`, and both are unset by default, so behaviour
+is unchanged until somebody decides otherwise. The mechanism is covered by tests,
+including that an unset or zero value means *no expiry* rather than *expire
+immediately*.
+
+**Why it is not simply switched on.** The two callers are not alike. A browser
+session can be re-established in seconds. A handheld terminal that expires part
+way through a stock take interrupts a count in progress, and that is an
+operational cost the counting team must weigh, not a technical detail.
+
+**Needed.**
+
+| # | Item | Why it cannot be decided here |
+| --- | --- | --- |
+| 1 | Web session window | Balance of convenience against exposure |
+| 2 | Device window | Depends on how long a count runs and how devices are managed |
+| 3 | Whether a lost device is revoked by hand instead | An operational process question |
+
+**Effort once decided.** Two environment values. No code change.
 
 ### D-08 · Backup execution and retention — **Open**
 
@@ -297,6 +340,8 @@ The Android application itself.
 | L-09 | Dashboard has no charts | The requirement asked not to overload it. The variance breakdown is a proportional bar |
 | L-10 | Adjustment history has no reversal action | Correcting means posting another adjustment |
 | L-11 | No backup scheduler in the application | The procedure and scripts are supplied, but the infrastructure must run them — see D-08 |
+| L-12 | Access tokens do not expire | The mechanism is built and tested but deliberately unset, pending the operational decision in D-09 |
+| ~~L-13~~ | ~~An API route reached without an `Accept: application/json` header answers `500` rather than `401`~~ | **Closed 2026-08-27.** Laravel's default guest redirect resolved a `login` route this API does not define, and did so inside the auth middleware before the exception renderer could answer. With no redirect target the refusal reaches the renderer and returns `401` in the standard envelope, whatever the caller asked for |
 
 ---
 
@@ -310,3 +355,4 @@ The Android application itself.
 | 4 | D-04 Report columns | Cheap to change, but better settled before users see them |
 | 5 | A-04 Batch in real files | Affects how real stock files import |
 | 6 | D-08 Backup execution | The procedure exists; only the client can schedule and drill it |
+| 7 | D-09 Token expiry windows | Tokens never expire today; the mechanism is built and waiting on a duration |

@@ -28,6 +28,7 @@ import { apiErrorMessage, download, get } from '@/services/apiClient'
 import { formatByType } from '@/utils/format'
 import { PERMISSIONS } from '@/constants/permissions'
 import type { ReportDescriptor, ReportRow } from '@/types'
+import { neutral, semantic } from '@/theme'
 
 /**
  * One screen for all nine reports.
@@ -87,9 +88,9 @@ export function ReportsPage() {
                   </Typography>
 
                   <Stack direction="row" spacing={0.75} sx={{ mt: 1.5, flexWrap: 'wrap', gap: 0.75 }}>
-                    <Chip size="small" label={`${report.columns.length} columns`} sx={{ bgcolor: '#ECEFEE' }} />
-                    <Chip size="small" label="Excel" sx={{ bgcolor: '#E4F3EA', color: '#1B6E3C' }} />
-                    <Chip size="small" label="PDF" sx={{ bgcolor: '#FBE7E5', color: '#B3261E' }} />
+                    <Chip size="small" label={`${report.columns.length} columns`} sx={{ bgcolor: neutral[100] }} />
+                    <Chip size="small" label="Excel" sx={{ bgcolor: semantic.success.bg, color: semantic.success.fg }} />
+                    <Chip size="small" label="PDF" sx={{ bgcolor: semantic.error.bg, color: semantic.error.fg }} />
                   </Stack>
                 </CardContent>
               </CardActionArea>
@@ -245,6 +246,10 @@ function ReportViewer({ descriptor }: { descriptor: ReportDescriptor }) {
       ) : null}
 
       <DataTable
+        focusable
+        focusTitle="Report"
+        density="compact"
+        columnToggle
         columns={columns}
         rows={data?.data ?? []}
         rowKey={(row) => JSON.stringify(row).slice(0, 120)}
@@ -259,7 +264,6 @@ function ReportViewer({ descriptor }: { descriptor: ReportDescriptor }) {
         sortBy={table.sortBy}
         sortDir={table.sortDir}
         onSortChange={table.setSort}
-        dense
         emptyTitle="No records matched"
         emptyDescription="Adjust the filters above and run the report again."
         toolbar={

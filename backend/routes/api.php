@@ -5,7 +5,9 @@ use App\Http\Controllers\Api\AuditController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\DeviceController;
+use App\Http\Controllers\Api\DevicePairingController;
 use App\Http\Controllers\Api\FinalOutputController;
+use App\Http\Controllers\Api\HhtImportController;
 use App\Http\Controllers\Api\HhtSubmissionController;
 use App\Http\Controllers\Api\ItemController;
 use App\Http\Controllers\Api\ItemStockController;
@@ -15,6 +17,7 @@ use App\Http\Controllers\Api\ShopController;
 use App\Http\Controllers\Api\StockAdjustmentController;
 use App\Http\Controllers\Api\StockImportController;
 use App\Http\Controllers\Api\StockTakeController;
+use App\Http\Controllers\Api\StockTakeSessionController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\VarianceController;
 use App\Http\Controllers\Api\VerificationController;
@@ -34,6 +37,15 @@ Route::post('auth/login', [AuthController::class, 'login'])
     ->middleware('throttle:login')
     ->name('auth.login');
 
+// A handheld pairing for the first time has nothing to authenticate with, so
+// this one endpoint is public. It is throttled hard and answers every failure
+// identically, so it cannot be used to discover device codes.
+Route::post('hht/devices/pair', [DevicePairingController::class, 'pair'])
+    ->middleware('throttle:6,1');
+
+// Public aggregate counts shown on the login page - no sensitive data exposed.
+Route::get('public/stats', [DashboardController::class, 'publicStats']);
+
 Route::middleware('auth:sanctum')->group(function () {
     // ---------------------------------------------------------------- Auth
     Route::get('auth/me', [AuthController::class, 'me'])->name('auth.me');
@@ -52,6 +64,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('devices', DeviceController::class)->except(['show']);
 
     // ------------------------------------------------------- Stock import
+    Route::post('stock-imports/preview', [StockImportController::class, 'preview'])
+        ->middleware('throttle:stock-import');
     Route::get('stock-imports/template', [StockImportController::class, 'template']);
     Route::get('stock-imports/{stockImport}/errors', [StockImportController::class, 'errors']);
     Route::apiResource('stock-imports', StockImportController::class)
@@ -59,9 +73,32 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middlewareFor('store', 'throttle:stock-import');
 
     // --------------------------------------------------------- Item stock
+    // ------------------------------------------------------- Item master
+    // Item Import maintains the product list; Stock Import loads quantities.
+    // They are separate operations on purpose.
+    Route::post('items/import', [ItemController::class, 'import'])
+        ->middleware('throttle:stock-import');
+
+    // Declared before the resource so `lookup` is not read as an {itemStock}.
+    Route::get('item-stocks/lookup', [ItemStockController::class, 'lookup']);
     Route::apiResource('item-stocks', ItemStockController::class)->only(['index', 'show']);
 
     // -------------------------------------------------- HHT submissions
+    // Reachable by a paired handheld's own token: a cheap way to prove the
+    // server is up and the token still good without sending a count to find out.
+    Route::get('hht/devices/me', [DevicePairingController::class, 'me']);
+
+    Route::post('devices/{device}/pairing-code', [DevicePairingController::class, 'issue']);
+    Route::delete('devices/{device}/pairing', [DevicePairingController::class, 'revoke']);
+
+    // ------------------------------------------------------ HHT imports
+    // The handheld has no network path, so a completed count arrives as a
+    // workbook. The kind is decided from the file's own headings.
+    Route::post('hht/imports/preview', [HhtImportController::class, 'preview'])
+        ->middleware('throttle:stock-import');
+    Route::post('hht/imports', [HhtImportController::class, 'store'])
+        ->middleware('throttle:stock-import');
+
     Route::post('hht/submissions', [HhtSubmissionController::class, 'store']);
     Route::get('hht/submissions', [HhtSubmissionController::class, 'index']);
     Route::get('hht/submissions/{hhtSubmission}', [HhtSubmissionController::class, 'show']);
@@ -84,6 +121,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('adjustments', StockAdjustmentController::class)->only(['index', 'store', 'show']);
 
     // ---------------------------------------------------------- Stock take
+    // A cycle groups the lines of one sweep under a reference the operator can
+    // quote - STK-ddMMyyyy-NNNN, numbered per shop and never reused.
+    Route::post('stock-take-sessions/{stockTakeSession}/complete', [StockTakeSessionController::class, 'complete']);
+    Route::apiResource('stock-take-sessions', StockTakeSessionController::class)->only(['index', 'store', 'show']);
+
     Route::get('stock-takes/candidates', [StockTakeController::class, 'candidates']);
     Route::apiResource('stock-takes', StockTakeController::class)->except(['show']);
 

@@ -24,11 +24,11 @@ export function PageHeader({
   actions?: ReactNode
 }) {
   return (
-    <Box sx={{ mb: 3 }}>
+    <Box sx={{ mb: 2 }}>
       {crumbs.length > 0 ? (
         <Breadcrumbs
           separator={<NavigateNextRoundedIcon fontSize="small" />}
-          sx={{ mb: 1, '& .MuiBreadcrumbs-li': { fontSize: '0.8125rem' } }}
+          sx={{ mb: 0.75, '& .MuiBreadcrumbs-li': { fontSize: '0.8125rem' } }}
         >
           {crumbs.map((crumb) =>
             crumb.to ? (

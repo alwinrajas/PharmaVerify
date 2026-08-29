@@ -107,6 +107,10 @@ export function ActivityLogPage() {
       />
 
       <DataTable
+        focusable
+        focusTitle="Activity Log"
+        density="compact"
+        columnToggle
         columns={columns}
         rows={data?.data ?? []}
         rowKey={(row) => row.id}
@@ -118,7 +122,6 @@ export function ActivityLogPage() {
         perPage={table.perPage}
         onPageChange={table.setPage}
         onPerPageChange={table.setPerPage}
-        dense
         emptyTitle="No activity recorded"
         emptyDescription="Actions taken in the application will be listed here."
         toolbar={

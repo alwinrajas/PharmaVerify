@@ -82,6 +82,12 @@ class HhtSubmissionService
                 'submitted_at' => now(),
                 'item_count' => count($items),
                 'status' => Audit::STATUS_SUBMITTED,
+                // Stated rather than left to the column default. The web tells
+                // a direct submission from an imported spreadsheet by this
+                // field alone, and a default is the wrong thing to rest that on
+                // — the Excel importer sets its own, so only this path would be
+                // relying on one.
+                'source' => Audit::SOURCE_API,
             ]);
 
             $varianceCount = $this->createLines($audit, $shop, $items);
@@ -130,8 +136,9 @@ class HhtSubmissionService
             $stock = $this->matchStock($shop->id, $item);
 
             $physicalQty = (float) ($item['physical_quantity'] ?? 0);
+            $looseQty = (float) ($item['loose_quantity'] ?? 0);
             $systemQty = $stock ? (float) $stock->system_qty : 0.0;
-            $variance = AuditLine::calculateVariance($physicalQty, $systemQty);
+            $variance = AuditLine::calculateVariance($physicalQty, $looseQty, $systemQty);
 
             if ($variance != 0.0) {
                 $varianceCount++;
@@ -146,6 +153,7 @@ class HhtSubmissionService
                 'description' => $stock?->description ?? ($item['description'] ?? 'Unknown product'),
                 'system_qty' => $systemQty,
                 'physical_qty' => $physicalQty,
+                'loose_qty' => $looseQty,
                 'variance_qty' => $variance,
                 'uom' => $item['uom'] ?? $stock?->uom ?? 'EA',
                 // Cast explicitly: in a multi-row insert every row must give a
@@ -172,29 +180,55 @@ class HhtSubmissionService
     }
 
     /**
+     * Finds the stock line a counted item refers to.
+     *
+     * The GTIN is the identifier the handheld scans, so it is tried first,
+     * whether it arrives in its own field or in the `barcode` field an older
+     * device sends. The 7-digit internal barcode is a different identifier
+     * system and is only consulted once the GTIN has found nothing, so it can
+     * never displace the GTIN as the primary match.
+     *
      * @param  array<string, mixed>  $item
      */
     private function matchStock(int $shopId, array $item): ?ItemStock
     {
-        $query = ItemStock::where('shop_id', $shopId);
+        $scanned = $item['gtin'] ?? $item['barcode'] ?? null;
 
-        if (! empty($item['product_code'])) {
-            $query->where('product_code', $item['product_code']);
-        } elseif (! empty($item['barcode'])) {
-            $query->where('barcode', $item['barcode']);
-        } else {
-            return null;
+        $candidates = [];
+
+        if (! empty($scanned)) {
+            $candidates[] = ['gtin', $scanned];
         }
 
-        if (! empty($item['batch'])) {
-            $batchMatch = (clone $query)->where('batch', $item['batch'])->first();
+        if (! empty($item['product_code'])) {
+            $candidates[] = ['product_code', $item['product_code']];
+        }
 
-            if ($batchMatch) {
-                return $batchMatch;
+        if (! empty($item['barcode'])) {
+            $candidates[] = ['barcode', $item['barcode']];
+        }
+
+        foreach ($candidates as [$column, $value]) {
+            $query = ItemStock::where('shop_id', $shopId)->where($column, $value);
+
+            // Batch narrows the match; without one, the earliest expiry is the
+            // stock a shelf is worked from.
+            if (! empty($item['batch'])) {
+                $batchMatch = (clone $query)->where('batch', $item['batch'])->first();
+
+                if ($batchMatch) {
+                    return $batchMatch;
+                }
+            }
+
+            $match = $query->orderBy('expiry_date')->first();
+
+            if ($match) {
+                return $match;
             }
         }
 
-        return $query->first();
+        return null;
     }
 
     private function parseDate(mixed $value): ?string

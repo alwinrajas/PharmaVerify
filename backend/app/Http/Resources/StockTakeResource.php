@@ -17,12 +17,18 @@ class StockTakeResource extends JsonResource
             'shop_id' => $this->shop_id,
             'shop_code' => $this->whenLoaded('shop', fn () => $this->shop->shop_code),
             'shop_name' => $this->whenLoaded('shop', fn () => $this->shop->shop_name),
+            'stock_take_session_id' => $this->stock_take_session_id,
+            // Null for a take recorded ad hoc, which is what every take
+            // predating stock-take sessions is.
+            'take_ref' => $this->whenLoaded('session', fn () => $this->session?->take_ref),
             'audit_id' => $this->audit_id,
             'audit_number' => $this->whenLoaded('audit', fn () => $this->audit?->audit_number),
             'barcode' => $this->barcode,
             'product_code' => $this->product_code,
             'description' => $this->description,
             'physical_qty' => (float) $this->physical_qty,
+            // Counted outside a full pack, alongside the whole units.
+            'loose_qty' => (float) $this->loose_qty,
             'uom' => $this->uom,
             'batch' => $this->batch,
             'expiry_date' => $this->expiry_date?->toDateString(),

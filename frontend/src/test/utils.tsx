@@ -88,7 +88,10 @@ export function makeAuditLine(overrides: Record<string, unknown> = {}) {
     description: 'Atorvastatin 10mg Tablet',
     system_qty: 125,
     physical_qty: 120,
-    variance_qty: -5,
+    loose_qty: 0,
+    source_system_qty: null,
+    // System - (Physical + Loose) = 125 - 120 = 5. Positive is short.
+    variance_qty: 5,
     uom: 'STRIP',
     price: 94.3,
     batch: 'B01005',

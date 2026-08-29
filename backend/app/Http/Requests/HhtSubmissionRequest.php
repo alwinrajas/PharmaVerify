@@ -35,10 +35,16 @@ class HhtSubmissionRequest extends FormRequest
             'app_version' => ['nullable', 'string', 'max:30'],
 
             'items' => ['required', 'array', 'min:1'],
+            // The identifier the handheld scans. `barcode` stays accepted so
+            // devices that predate the GTIN mapping keep working.
+            'items.*.gtin' => ['nullable', 'string', 'max:20'],
             'items.*.barcode' => ['nullable', 'string', 'max:60'],
-            'items.*.product_code' => ['required_without:items.*.barcode', 'nullable', 'string', 'max:60'],
+            'items.*.product_code' => ['required_without_all:items.*.barcode,items.*.gtin', 'nullable', 'string', 'max:60'],
             'items.*.description' => ['nullable', 'string', 'max:300'],
             'items.*.physical_quantity' => ['required', 'numeric', 'min:0', 'max:99999999'],
+            // Counted alongside the whole units, not carved out of them, so
+            // there is deliberately no rule tying it to the physical figure.
+            'items.*.loose_quantity' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
             'items.*.batch' => ['nullable', 'string', 'max:60'],
             'items.*.expiry' => ['nullable', 'date'],
             'items.*.uom' => ['nullable', 'string', 'max:20'],

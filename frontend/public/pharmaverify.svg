@@ -1,6 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="14" fill="#0F5D4C"/>
-  <path d="M32 14a4 4 0 0 1 4 4v10h10a4 4 0 0 1 0 8H36v10a4 4 0 0 1-8 0V36H18a4 4 0 0 1 0-8h10V18a4 4 0 0 1 4-4z" fill="#fff"/>
-  <circle cx="48" cy="48" r="10" fill="#2E9E7E" stroke="#0F5D4C" stroke-width="2"/>
-  <path d="M43.5 48.2l3 3 6-6.4" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Circular Dark Green Base -->
+  <circle cx="32" cy="32" r="32" fill="#0F5D4C"/>
+  <!-- Bold White Pharmacy Cross -->
+  <path d="M32 14a4 4 0 0 1 4 4v9h9a4 4 0 0 1 0 8H36v9a4 4 0 0 1-8 0V35H19a4 4 0 0 1 0-8h9V18a4 4 0 0 1 4-4z" fill="#FFFFFF"/>
+  <!-- Circular Green Verification Seal -->
+  <circle cx="47" cy="47" r="10.5" fill="#4FD1A5" stroke="#0F5D4C" stroke-width="2.5"/>
+  <!-- Checkmark inside seal -->
+  <path d="M42.5 47.2l3 3 6-6.4" fill="none" stroke="#FFFFFF" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

@@ -1,18 +1,20 @@
-import { Alert, Box, Button, IconButton, TextField, Tooltip, Typography } from '@mui/material'
+import { Alert, Box, Button, Chip, IconButton, Stack, TextField, Tooltip, Typography } from '@mui/material'
 import AddRoundedIcon from '@mui/icons-material/AddRounded'
 import EditRoundedIcon from '@mui/icons-material/EditRounded'
+import LinkRoundedIcon from '@mui/icons-material/LinkRounded'
+import LinkOffRoundedIcon from '@mui/icons-material/LinkOffRounded'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSnackbar } from 'notistack'
 import { useState } from 'react'
 import { DataTable, type DataTableColumn } from '@/components/DataTable'
 import { FilterBar, SearchBar, SelectFilter } from '@/components/filters'
-import { FormDialog } from '@/components/dialogs'
+import { ConfirmDialog, FormDialog } from '@/components/dialogs'
 import { PageHeader } from '@/components/PageHeader'
 import { StatusBadge } from '@/components/StatusBadge'
 import { useAuth } from '@/features/auth/AuthContext'
 import { useShopOptions } from '@/hooks/useOptions'
 import { useTableQuery } from '@/hooks/useTableQuery'
-import { apiErrorMessage, get, post, put } from '@/services/apiClient'
+import { apiErrorMessage, destroy, get, post, put } from '@/services/apiClient'
 import { formatDateTime } from '@/utils/format'
 import { PERMISSIONS } from '@/constants/permissions'
 import type { Device } from '@/types'
@@ -25,12 +27,60 @@ const emptyForm = {
   status: 'active',
 }
 
+/**
+ * How recently a terminal was actually heard from.
+ *
+ * There is no live presence channel here, so this claims none: it reports the
+ * last authenticated interaction and lets the age speak. A device is called
+ * "Recently seen" rather than "Online" for exactly that reason — the server
+ * knows when it last heard from the terminal, not whether it is switched on
+ * now, and a pairing record is no evidence either way.
+ */
+function Presence({ lastSeenAt }: { lastSeenAt?: string | null }) {
+  if (!lastSeenAt) {
+    return (
+      <Typography variant="body2" color="text.secondary">
+        Never seen
+      </Typography>
+    )
+  }
+
+  const ageMs = Date.now() - new Date(lastSeenAt).getTime()
+  const recent = ageMs < 10 * 60 * 1000
+
+  return (
+    <Box>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+        <Box
+          sx={{
+            width: 8,
+            height: 8,
+            borderRadius: '50%',
+            bgcolor: recent ? 'success.main' : 'text.disabled',
+            flexShrink: 0,
+          }}
+        />
+        <Typography variant="body2">{recent ? 'Recently seen' : 'Not seen recently'}</Typography>
+      </Box>
+      <Typography variant="caption" sx={{ display: 'block' }}>
+        {formatDateTime(lastSeenAt)}
+      </Typography>
+    </Box>
+  )
+}
+
 export function DevicesPage() {
   const { can } = useAuth()
   const queryClient = useQueryClient()
   const { enqueueSnackbar } = useSnackbar()
   const table = useTableQuery({ sortBy: 'device_code', sortDir: 'asc' })
   const { data: shops } = useShopOptions()
+
+  /** The code just issued, readable once. Null when no dialog is open. */
+  const [unpairTarget, setUnpairTarget] = useState<Device | null>(null)
+  const [pairing, setPairing] = useState<
+    { pairing_code: string; expires_in_minutes: number; device_code: string; shop_code: string } | null
+  >(null)
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<Device | null>(null)
@@ -77,6 +127,52 @@ export function DevicesPage() {
     setDialogOpen(true)
   }
 
+  /**
+   * Issues a pairing code for a terminal.
+   *
+   * The code is readable exactly once — the server keeps only a hash — so it is
+   * held in state and shown in a dialog rather than being fetched again when
+   * the operator needs it. Pairing a terminal that is already paired revokes
+   * its old token, which is the point when a device has been lost or reset.
+   */
+  const pairingMutation = useMutation({
+    mutationFn: async (device: Device) =>
+      post<{ pairing_code: string; expires_in_minutes: number; device_code: string; shop_code: string }>(
+        `/devices/${device.id}/pairing-code`,
+      ),
+    onSuccess: (response) => {
+      setPairing(response.data)
+      void queryClient.invalidateQueries({ queryKey: ['devices'] })
+    },
+    onError: (caught) => enqueueSnackbar(apiErrorMessage(caught), { variant: 'error' }),
+  })
+
+  /**
+   * Ends a terminal's pairing.
+   *
+   * Deletes the device's token server-side, so the handheld stops being able to
+   * submit immediately — this is what to reach for when a terminal is lost,
+   * reassigned to another shop, or handed back at the end of a contract.
+   *
+   * The handheld is not told. It discovers the pairing is gone the next time it
+   * checks or tries to send, and reports it as needing to be paired again.
+   * Counts already queued on it are not lost: they wait there until somebody
+   * pairs it, which is the safe behaviour for a terminal that may be holding
+   * the only copy of a count.
+   */
+  const unpairMutation = useMutation({
+    mutationFn: async (device: Device) => destroy(`/devices/${device.id}/pairing`),
+    onSuccess: (_result, device) => {
+      enqueueSnackbar(`${device.device_code} is no longer paired.`, { variant: 'success' })
+      void queryClient.invalidateQueries({ queryKey: ['devices'] })
+      setUnpairTarget(null)
+    },
+    onError: (caught) => {
+      enqueueSnackbar(apiErrorMessage(caught), { variant: 'error' })
+      setUnpairTarget(null)
+    },
+  })
+
   const columns: DataTableColumn<Device>[] = [
     {
       key: 'device_code',
@@ -121,6 +217,18 @@ export function DevicesPage() {
       render: (device) => formatDateTime(device.last_submission_at),
     },
     {
+      // The last time this terminal proved it was there, by authenticating.
+      // Distinct from Last Submission: a device can be switched on, connected
+      // and counting for an hour before it files anything, and an admin asking
+      // "is HHT-02 alive" wants this one.
+      key: 'last_seen_at',
+      label: 'Last Seen',
+      sortable: true,
+      width: 200,
+      hideBelow: 'lg',
+      render: (device) => <Presence lastSeenAt={device.last_seen_at} />,
+    },
+    {
       key: 'status',
       label: 'Status',
       sortable: true,
@@ -128,17 +236,56 @@ export function DevicesPage() {
       render: (device) => <StatusBadge status={device.status} />,
     },
     {
+      // Whether this terminal can submit on its own. A device that has never
+      // paired can still be used — its counts leave by Excel — so this is
+      // information, not a fault.
+      key: 'paired_at',
+      label: 'Pairing',
+      width: 130,
+      render: (device) =>
+        device.paired_at ? (
+          <Chip size="small" variant="outlined" color="success" label="Paired" />
+        ) : (
+          <Chip size="small" variant="outlined" label="Not paired" />
+        ),
+    },
+    {
       key: 'actions',
       label: '',
       align: 'right',
-      width: 60,
+      width: 96,
       render: (device) =>
         can(PERMISSIONS.devicesEdit) ? (
-          <Tooltip title="Edit device">
-            <IconButton size="small" onClick={() => openEdit(device)}>
-              <EditRoundedIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
+          <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+            <Tooltip title={device.paired_at ? 'Pair again' : 'Pair this device'}>
+              <IconButton
+                size="small"
+                aria-label="Pair device"
+                onClick={() => pairingMutation.mutate(device)}
+                disabled={pairingMutation.isPending}
+              >
+                <LinkRoundedIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            {/* Only offered for a terminal that has something to revoke. */}
+            {device.paired_at ? (
+              <Tooltip title="Unpair this device">
+                <IconButton
+                  size="small"
+                  aria-label="Unpair device"
+                  onClick={() => setUnpairTarget(device)}
+                  disabled={unpairMutation.isPending}
+                >
+                  <LinkOffRoundedIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            ) : null}
+            <Tooltip title="Edit device">
+              <IconButton size="small" aria-label="Edit device" onClick={() => openEdit(device)}>
+                <EditRoundedIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </Stack>
         ) : null,
     },
   ]
@@ -164,6 +311,9 @@ export function DevicesPage() {
       </Alert>
 
       <DataTable
+        focusable
+        focusTitle="HHT Devices"
+        columnToggle
         columns={columns}
         rows={data?.data ?? []}
         rowKey={(device) => device.id}
@@ -275,6 +425,62 @@ export function DevicesPage() {
           />
         </Box>
       </FormDialog>
+
+      {/* Confirmed rather than immediate: revoking is not reversible from
+          here — the terminal has to be paired again with a fresh code, which
+          means finding whoever holds them. */}
+      <ConfirmDialog
+        open={unpairTarget !== null}
+        title={`Unpair ${unpairTarget?.device_code ?? ''}?`}
+        message={`${unpairTarget?.device_code ?? 'This terminal'} will stop being able to submit counts to PharmaVerify immediately. Any counts already saved on it stay on the terminal until it is paired again. To use it after this, pair it with a new code.`}
+        confirmLabel="Unpair"
+        onConfirm={() => unpairTarget && unpairMutation.mutate(unpairTarget)}
+        onClose={() => setUnpairTarget(null)}
+      />
+
+      {/* The code is readable exactly once — the server keeps only a hash — so
+          this dialog is the single moment it exists in the clear. It is shown
+          large because it is read aloud across a counter to someone holding a
+          handheld. */}
+      <ConfirmDialog
+        open={pairing !== null}
+        title={`Pair ${pairing?.device_code ?? ''}`}
+        message={`Enter this code on the handheld, in Settings under PharmaVerify server. It works once and expires in ${
+          pairing?.expires_in_minutes ?? 30
+        } minutes.`}
+        confirmLabel="Done"
+        cancelLabel=""
+        onConfirm={() => setPairing(null)}
+        onClose={() => setPairing(null)}
+        detail={
+          <Box>
+            <Typography
+              sx={{
+                fontFamily: 'ui-monospace, monospace',
+                fontSize: '2rem',
+                fontWeight: 700,
+                letterSpacing: '0.18em',
+                textAlign: 'center',
+                py: 2,
+                borderRadius: 2,
+                bgcolor: 'action.hover',
+              }}
+            >
+              {pairing?.pairing_code}
+            </Typography>
+
+            <Alert severity="info" sx={{ mt: 2, py: 0.5 }}>
+              The terminal also needs this server&apos;s address, and its device code{' '}
+              <strong>{pairing?.device_code}</strong> at shop <strong>{pairing?.shop_code}</strong>.
+            </Alert>
+
+            <Typography variant="caption" sx={{ display: 'block', mt: 1.5 }}>
+              Pairing a terminal that was already paired revokes its previous token, so a lost or reset handheld stops
+              being able to submit.
+            </Typography>
+          </Box>
+        }
+      />
     </Box>
   )
 }

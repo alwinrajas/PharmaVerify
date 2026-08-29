@@ -36,7 +36,8 @@ describe('VerifyLineDialog', () => {
 
     expect(screen.getByText('125')).toBeInTheDocument()
     expect(screen.getByText('120')).toBeInTheDocument()
-    expect(screen.getByText('-5')).toBeInTheDocument()
+    // 125 held against 120 counted is five short, and short is positive.
+    expect(screen.getByText('5')).toBeInTheDocument()
   })
 
   it('recalculates the variance as the counted quantity is typed', async () => {
@@ -46,8 +47,8 @@ describe('VerifyLineDialog', () => {
     await user.clear(field)
     await user.type(field, '130')
 
-    // 130 counted against 125 held is five over.
-    expect(await screen.findByText('+5')).toBeInTheDocument()
+    // 130 counted against 125 held is five over, and excess is negative.
+    expect(await screen.findByText('-5')).toBeInTheDocument()
   })
 
   it('shows a zero variance when the count agrees with the system', async () => {
@@ -57,7 +58,24 @@ describe('VerifyLineDialog', () => {
     await user.clear(field)
     await user.type(field, '125')
 
-    expect(await screen.findByText('0')).toBeInTheDocument()
+    // Scoped to the variance figure: the loose quantity beside it also reads
+    // zero, so a bare text query would match either.
+    const variance = screen.getByText('Variance').parentElement!
+
+    await waitFor(() => expect(variance).toHaveTextContent(/^Variance0$/))
+  })
+
+  it('counts loose stock towards the shelf when working out the variance', async () => {
+    const { user } = setup()
+
+    // 125 held, 120 whole units and 5 loose: the shelf agrees after all.
+    const loose = screen.getByLabelText(/Loose Quantity/)
+    await user.clear(loose)
+    await user.type(loose, '5')
+
+    const variance = screen.getByText('Variance').parentElement!
+
+    await waitFor(() => expect(variance).toHaveTextContent(/^Variance0$/))
   })
 
   it('does not accept a negative quantity', () => {

@@ -62,6 +62,7 @@ class ReportRegistry
             columns: [
                 ['key' => 'shop_code', 'label' => 'Shop', 'type' => 'text'],
                 ['key' => 'audit_number', 'label' => 'Audit No.', 'type' => 'number'],
+                ['key' => 'audit_ref', 'label' => 'Audit Ref', 'type' => 'text'],
                 ['key' => 'device_code', 'label' => 'Device', 'type' => 'text'],
                 ['key' => 'product_code', 'label' => 'Product Code', 'type' => 'text'],
                 ['key' => 'barcode', 'label' => 'Barcode', 'type' => 'text'],
@@ -70,7 +71,9 @@ class ReportRegistry
                 ['key' => 'expiry_date', 'label' => 'Expiry', 'type' => 'date'],
                 ['key' => 'uom', 'label' => 'UOM', 'type' => 'text'],
                 ['key' => 'system_qty', 'label' => 'System Qty', 'type' => 'decimal'],
+                ['key' => 'source_system_qty', 'label' => 'HHT System Qty', 'type' => 'decimal'],
                 ['key' => 'physical_qty', 'label' => 'Physical Qty', 'type' => 'decimal'],
+                ['key' => 'loose_qty', 'label' => 'Loose Qty', 'type' => 'decimal'],
                 ['key' => 'variance_qty', 'label' => 'Variance', 'type' => 'decimal'],
                 ['key' => 'adjustment_status', 'label' => 'Adjustment', 'type' => 'text'],
             ],
@@ -79,11 +82,14 @@ class ReportRegistry
             summary: fn (Builder $query) => [
                 'lines' => (clone $query)->count(),
                 'net_variance' => (float) (clone $query)->sum('variance_qty'),
-                'short_lines' => (clone $query)->where('variance_qty', '<', 0)->count(),
-                'excess_lines' => (clone $query)->where('variance_qty', '>', 0)->count(),
+                // Variance is System - (Physical + Loose): short is positive.
+                'short_lines' => (clone $query)->where('variance_qty', '>', 0)->count(),
+                'excess_lines' => (clone $query)->where('variance_qty', '<', 0)->count(),
             ],
             defaultSort: 'variance_qty',
-            defaultSortDir: 'asc',
+            // Descending puts the largest shortage first, which is what the
+            // reader of a variance report is looking for.
+            defaultSortDir: 'desc',
         );
     }
 
@@ -101,11 +107,14 @@ class ReportRegistry
                 ['key' => 'shop_code', 'label' => 'Shop', 'type' => 'text'],
                 ['key' => 'device_code', 'label' => 'Device', 'type' => 'text'],
                 ['key' => 'audit_number', 'label' => 'Audit No.', 'type' => 'number'],
+                ['key' => 'audit_ref', 'label' => 'Audit Ref', 'type' => 'text'],
                 ['key' => 'product_code', 'label' => 'Product Code', 'type' => 'text'],
                 ['key' => 'description', 'label' => 'Product Description', 'type' => 'text', 'width' => 40],
                 ['key' => 'batch', 'label' => 'Batch', 'type' => 'text'],
                 ['key' => 'system_qty', 'label' => 'System Qty', 'type' => 'decimal'],
+                ['key' => 'source_system_qty', 'label' => 'HHT System Qty', 'type' => 'decimal'],
                 ['key' => 'physical_qty', 'label' => 'Physical Qty', 'type' => 'decimal'],
+                ['key' => 'loose_qty', 'label' => 'Loose Qty', 'type' => 'decimal'],
                 ['key' => 'variance_qty', 'label' => 'Variance', 'type' => 'decimal'],
                 ['key' => 'verification_status', 'label' => 'Verification', 'type' => 'text'],
                 ['key' => 'adjustment_status', 'label' => 'Adjustment', 'type' => 'text'],
@@ -141,6 +150,7 @@ class ReportRegistry
                 ['key' => 'expiry_date', 'label' => 'Expiry', 'type' => 'date'],
                 ['key' => 'uom', 'label' => 'UOM', 'type' => 'text'],
                 ['key' => 'system_qty', 'label' => 'System Qty', 'type' => 'decimal'],
+                ['key' => 'source_system_qty', 'label' => 'HHT System Qty', 'type' => 'decimal'],
                 ['key' => 'price', 'label' => 'Price', 'type' => 'money'],
                 ['key' => 'stock_value', 'label' => 'Stock Value', 'type' => 'money'],
                 ['key' => 'shelf_location', 'label' => 'Shelf', 'type' => 'text'],
@@ -174,6 +184,7 @@ class ReportRegistry
                 ['key' => 'batch', 'label' => 'Batch', 'type' => 'text'],
                 ['key' => 'expiry_date', 'label' => 'Expiry', 'type' => 'date'],
                 ['key' => 'system_qty', 'label' => 'System Qty', 'type' => 'decimal'],
+                ['key' => 'source_system_qty', 'label' => 'HHT System Qty', 'type' => 'decimal'],
                 ['key' => 'price', 'label' => 'Price', 'type' => 'money'],
                 ['key' => 'stock_value', 'label' => 'Stock Value', 'type' => 'money'],
             ],
@@ -227,12 +238,14 @@ class ReportRegistry
                 ['key' => 'adjusted_at', 'label' => 'Adjusted On', 'type' => 'datetime'],
                 ['key' => 'shop_code', 'label' => 'Shop', 'type' => 'text'],
                 ['key' => 'audit_number', 'label' => 'Audit No.', 'type' => 'number'],
+                ['key' => 'audit_ref', 'label' => 'Audit Ref', 'type' => 'text'],
                 ['key' => 'device_code', 'label' => 'Device', 'type' => 'text'],
                 ['key' => 'product_code', 'label' => 'Product Code', 'type' => 'text'],
                 ['key' => 'description', 'label' => 'Product Description', 'type' => 'text', 'width' => 38],
                 ['key' => 'batch', 'label' => 'Batch', 'type' => 'text'],
                 ['key' => 'old_system_qty', 'label' => 'Previous Qty', 'type' => 'decimal'],
                 ['key' => 'physical_qty', 'label' => 'Physical Qty', 'type' => 'decimal'],
+                ['key' => 'loose_qty', 'label' => 'Loose Qty', 'type' => 'decimal'],
                 ['key' => 'variance_qty', 'label' => 'Variance', 'type' => 'decimal'],
                 ['key' => 'new_system_qty', 'label' => 'New Qty', 'type' => 'decimal'],
                 ['key' => 'adjusted_by', 'label' => 'Adjusted By', 'type' => 'text'],
@@ -263,6 +276,7 @@ class ReportRegistry
                 ['key' => 'shop_code', 'label' => 'Shop', 'type' => 'text'],
                 ['key' => 'device_code', 'label' => 'Device', 'type' => 'text'],
                 ['key' => 'audit_number', 'label' => 'Audit No.', 'type' => 'number'],
+                ['key' => 'audit_ref', 'label' => 'Audit Ref', 'type' => 'text'],
                 ['key' => 'audit_date', 'label' => 'Audit Date', 'type' => 'date'],
                 ['key' => 'product_code', 'label' => 'Product Code', 'type' => 'text'],
                 ['key' => 'barcode', 'label' => 'Barcode', 'type' => 'text'],
@@ -273,7 +287,9 @@ class ReportRegistry
                 ['key' => 'uom', 'label' => 'UOM', 'type' => 'text'],
                 ['key' => 'price', 'label' => 'Price', 'type' => 'money'],
                 ['key' => 'system_qty', 'label' => 'System Qty', 'type' => 'decimal'],
+                ['key' => 'source_system_qty', 'label' => 'HHT System Qty', 'type' => 'decimal'],
                 ['key' => 'physical_qty', 'label' => 'Physical Qty', 'type' => 'decimal'],
+                ['key' => 'loose_qty', 'label' => 'Loose Qty', 'type' => 'decimal'],
                 ['key' => 'variance_qty', 'label' => 'Variance', 'type' => 'decimal'],
                 ['key' => 'verification_status', 'label' => 'Verification', 'type' => 'text'],
                 ['key' => 'adjustment_status', 'label' => 'Adjustment', 'type' => 'text'],
@@ -299,11 +315,13 @@ class ReportRegistry
                 ['key' => 'shop_code', 'label' => 'Shop', 'type' => 'text'],
                 ['key' => 'device_code', 'label' => 'Device', 'type' => 'text'],
                 ['key' => 'audit_number', 'label' => 'Audit No.', 'type' => 'number'],
+                ['key' => 'audit_ref', 'label' => 'Audit Ref', 'type' => 'text'],
                 ['key' => 'audit_date', 'label' => 'Audit Date', 'type' => 'date'],
                 ['key' => 'item_count', 'label' => 'Items Counted', 'type' => 'number'],
-                ['key' => 'excess_lines', 'label' => 'Excess Lines', 'type' => 'number'],
                 ['key' => 'short_lines', 'label' => 'Short Lines', 'type' => 'number'],
+                ['key' => 'excess_lines', 'label' => 'Excess Lines', 'type' => 'number'],
                 ['key' => 'matched_lines', 'label' => 'Matched Lines', 'type' => 'number'],
+                ['key' => 'loose_total', 'label' => 'Loose Qty', 'type' => 'decimal'],
                 ['key' => 'net_variance', 'label' => 'Net Variance', 'type' => 'decimal'],
                 ['key' => 'status', 'label' => 'Status', 'type' => 'text'],
             ],
@@ -358,6 +376,7 @@ class ReportRegistry
                 'shops.shop_name',
                 'devices.device_code',
                 'audits.audit_number',
+                'audits.audit_ref',
                 'audits.audit_date',
             ]);
 
@@ -472,10 +491,14 @@ class ReportRegistry
                 'shops.shop_code',
                 'devices.device_code',
             ])
-            ->selectRaw('SUM(CASE WHEN audit_lines.variance_qty > 0 THEN 1 ELSE 0 END) as excess_lines')
-            ->selectRaw('SUM(CASE WHEN audit_lines.variance_qty < 0 THEN 1 ELSE 0 END) as short_lines')
+            // Variance is System - (Physical + Loose), so a positive figure is
+            // a shortage. Getting these two the wrong way round would report a
+            // shortage as a surplus without raising an error anywhere.
+            ->selectRaw('SUM(CASE WHEN audit_lines.variance_qty > 0 THEN 1 ELSE 0 END) as short_lines')
+            ->selectRaw('SUM(CASE WHEN audit_lines.variance_qty < 0 THEN 1 ELSE 0 END) as excess_lines')
             ->selectRaw('SUM(CASE WHEN audit_lines.variance_qty = 0 THEN 1 ELSE 0 END) as matched_lines')
-            ->selectRaw('COALESCE(SUM(audit_lines.variance_qty), 0) as net_variance');
+            ->selectRaw('COALESCE(SUM(audit_lines.variance_qty), 0) as net_variance')
+            ->selectRaw('COALESCE(SUM(audit_lines.loose_qty), 0) as loose_total');
 
         $this->applyCommonFilters($query, $request, [
             'shop_id' => 'audits.shop_id',

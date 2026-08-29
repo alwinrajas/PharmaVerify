@@ -9,7 +9,6 @@ import {
   Divider,
   LinearProgress,
   Stack,
-  TextField,
   Typography,
 } from '@mui/material'
 import UploadFileRoundedIcon from '@mui/icons-material/UploadFileRounded'
@@ -18,7 +17,113 @@ import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded'
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSnackbar } from 'notistack'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+
+function useLiveProgressTracker({
+  isPending,
+  progress,
+  fileSize,
+}: {
+  isPending: boolean
+  progress: number
+  fileSize: number
+}) {
+  const [elapsedSec, setElapsedSec] = useState(0)
+  const [uploadSpeed, setUploadSpeed] = useState<string>('')
+  const [uploadEtaSec, setUploadEtaSec] = useState<number | null>(null)
+
+  const startTimeRef = useRef<number | null>(null)
+  const uploadEndTimeRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    if (!isPending) {
+      setElapsedSec(0)
+      setUploadSpeed('')
+      setUploadEtaSec(null)
+      startTimeRef.current = null
+      uploadEndTimeRef.current = null
+      return
+    }
+
+    if (!startTimeRef.current) {
+      startTimeRef.current = Date.now()
+    }
+
+    const timer = setInterval(() => {
+      if (startTimeRef.current) {
+        setElapsedSec(Math.floor((Date.now() - startTimeRef.current) / 1000))
+      }
+    }, 500)
+
+    return () => clearInterval(timer)
+  }, [isPending])
+
+  useEffect(() => {
+    if (!isPending || !startTimeRef.current) return
+
+    if (progress > 0 && progress < 100 && fileSize > 0) {
+      const elapsed = (Date.now() - startTimeRef.current) / 1000
+      if (elapsed > 0.1) {
+        const loaded = (fileSize * progress) / 100
+        const bytesPerSec = loaded / elapsed
+        const remaining = fileSize - loaded
+        if (bytesPerSec > 0) {
+          const eta = Math.ceil(remaining / bytesPerSec)
+          setUploadEtaSec(eta)
+          if (bytesPerSec > 1024 * 1024) {
+            setUploadSpeed(`${(bytesPerSec / (1024 * 1024)).toFixed(1)} MB/s`)
+          } else {
+            setUploadSpeed(`${(bytesPerSec / 1024).toFixed(0)} KB/s`)
+          }
+        }
+      }
+    } else if (progress === 100) {
+      if (!uploadEndTimeRef.current) {
+        uploadEndTimeRef.current = Date.now()
+      }
+    }
+  }, [isPending, progress, fileSize])
+
+  // Processing estimation for server phase
+  const fileMb = fileSize ? fileSize / (1024 * 1024) : 1
+  const estimatedServerTotal = Math.max(5, Math.ceil(fileMb * 5.5))
+
+  const serverSec = uploadEndTimeRef.current
+    ? Math.floor((Date.now() - uploadEndTimeRef.current) / 1000)
+    : Math.max(0, elapsedSec - 2)
+
+  const serverRemaining = Math.max(1, estimatedServerTotal - serverSec)
+
+  const format = (sec: number) => {
+    const m = Math.floor(sec / 60)
+    const s = sec % 60
+    return m > 0 ? `${m}m ${s < 10 ? '0' : ''}${s}s` : `${s}s`
+  }
+
+  const isUploading = progress > 0 && progress < 100
+
+  let buttonTimeText = ''
+  let progressLineText = ''
+
+  if (isUploading) {
+    const etaStr = uploadEtaSec !== null ? `${format(uploadEtaSec)} left` : 'calculating...'
+    buttonTimeText = `${progress}% | ${etaStr}`
+    progressLineText = `Uploading… ${progress}%${uploadSpeed ? ` (${uploadSpeed})` : ''} • Elapsed: ${format(elapsedSec)} (${etaStr})`
+  } else if (progress === 100) {
+    const remStr = serverRemaining > 1 ? `~${format(serverRemaining)} left` : 'almost done'
+    buttonTimeText = `${format(serverSec)} | ${remStr}`
+    progressLineText = `Reading workbook & validating rows… Elapsed: ${format(serverSec)} (${remStr})`
+  } else {
+    buttonTimeText = `${format(elapsedSec)}`
+    progressLineText = `Starting upload… Elapsed: ${format(elapsedSec)}`
+  }
+
+  return {
+    buttonTimeText,
+    progressLineText,
+    isUploading,
+  }
+}
 import { DataTable, type DataTableColumn } from '@/components/DataTable'
 import { ConfirmDialog } from '@/components/dialogs'
 import { FilterBar, SelectFilter } from '@/components/filters'
@@ -44,8 +149,43 @@ interface StockReportSummary {
   imported: number
   failed: number
   replaced: number
-  items_synced: number
+  items_created: number
   barcodes_matched: number
+  gtin_missing: number
+  gtin_duplicates: number
+}
+
+/**
+ * What a file would do, worked out before it is allowed to do it.
+ *
+ * Importing replaces a shop's stock outright, so nothing is written until the
+ * user has seen which branches the file covers and what each one currently
+ * holds.
+ */
+export interface StockPreviewShop {
+  shop_id: number
+  shop_code: string | null
+  shop_name: string | null
+  ax_location_id: string | null
+  existing_records: number
+  incoming_records: number
+  action: 'replace'
+}
+
+export interface StockPreview {
+  file_name: string
+  total_rows: number
+  valid_rows: number
+  invalid_rows: number
+  locations_detected: number
+  shops: StockPreviewShop[]
+  unmatched_locations: Array<{ ax_location_id: string; rows: number }>
+  items_referenced: number
+  items_matched: number
+  items_unmatched: number
+  gtin_missing: number
+  gtin_duplicates: Array<{ gtin: string; product_codes: string[] }>
+  sample_errors: Array<{ row_number: number; column_name: string; column_value: string | null; error_message: string }>
 }
 
 type ImportResponse = {
@@ -62,7 +202,7 @@ interface ImportOutcome {
   failed: number
   replaced: number
   shops: number
-  itemsSynced: number
+  itemsCreated: number
   /** The record errors were recorded against, if any. */
   primary: StockImport | null
 }
@@ -80,7 +220,7 @@ function toOutcome(response: ImportResponse): ImportOutcome {
       failed: summary.failed,
       replaced: summary.replaced,
       shops: summary.shops,
-      itemsSynced: summary.items_synced,
+      itemsCreated: summary.items_created,
       primary: records.find((r) => r.failed_records > 0) ?? records[0] ?? null,
     }
   }
@@ -95,7 +235,7 @@ function toOutcome(response: ImportResponse): ImportOutcome {
     failed: single?.failed_records ?? 0,
     replaced: single?.replaced_records ?? 0,
     shops: 1,
-    itemsSynced: 0,
+    itemsCreated: 0,
     primary: single ?? null,
   }
 }
@@ -108,9 +248,9 @@ export function StockImportPage() {
   const { data: shops } = useShopOptions()
   const fileInput = useRef<HTMLInputElement>(null)
 
-  const [shopId, setShopId] = useState('')
   const [file, setFile] = useState<File | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [preview, setPreview] = useState<StockPreview | null>(null)
   const [progress, setProgress] = useState(0)
   const [result, setResult] = useState<ImportOutcome | null>(null)
   const [selectedImport, setSelectedImport] = useState<StockImport | null>(null)
@@ -133,10 +273,39 @@ export function StockImportPage() {
     enabled: Boolean(selectedImport?.id),
   })
 
+  /**
+   * Reads the file and reports what it would do. Writes nothing, so it is safe
+   * to run as often as the user likes before committing to a replacement.
+   */
+  const previewMutation = useMutation({
+    mutationFn: async () => {
+      const payload = new FormData()
+      payload.append('file', file as File)
+
+      const response = await apiClient.post<{ data: StockPreview }>('/stock-imports/preview', payload, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        onUploadProgress: (event) => {
+          if (event.total) setProgress(Math.round((event.loaded / event.total) * 100))
+        },
+      })
+
+      return response.data.data
+    },
+    onSuccess: (checked) => {
+      setPreview(checked)
+      setResult(null)
+    },
+    onError: (caught) => {
+      // The older single-sheet file has no preview; it imports directly.
+      setPreview(null)
+      enqueueSnackbar(apiErrorMessage(caught, 'The file could not be checked.'), { variant: 'error' })
+    },
+    onSettled: () => setProgress(0),
+  })
+
   const importMutation = useMutation({
     mutationFn: async () => {
       const payload = new FormData()
-      if (shopId) payload.append('shop_id', shopId)
       payload.append('file', file as File)
 
       const response = await apiClient.post<ImportResponse>('/stock-imports', payload, {
@@ -160,6 +329,7 @@ export function StockImportPage() {
       void queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] })
 
       setFile(null)
+      setPreview(null)
       if (fileInput.current) fileInput.current.value = ''
     },
     onError: (caught) => {
@@ -171,7 +341,13 @@ export function StockImportPage() {
     },
   })
 
-  const selectedShop = (shops ?? []).find((shop) => String(shop.id) === shopId)
+  const isProcessing = previewMutation.isPending || importMutation.isPending
+  const liveTracker = useLiveProgressTracker({
+    isPending: isProcessing,
+    progress,
+    fileSize: file?.size ?? 0,
+  })
+
 
   const columns: DataTableColumn<StockImport>[] = [
     {
@@ -280,25 +456,11 @@ export function StockImportPage() {
               Supported formats: .xls and .xlsx, up to 100 MB. A large Stock Report can take a minute or two to process.
             </Typography>
 
-            <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', md: '300px 1fr auto' }, alignItems: 'start' }}>
-              <TextField
-                select
-                label="Shop (optional)"
-                value={shopId}
-                onChange={(event) => setShopId(event.target.value)}
-                size="small"
-                fullWidth
-                slotProps={{ select: { native: true } }}
-                helperText="A Stock Report names its own shops. Choose one only to import a single branch."
-              >
-                <option value="">All shops named in the file</option>
-                {(shops ?? []).map((shop) => (
-                  <option key={shop.id} value={shop.id}>
-                    {shop.label}
-                  </option>
-                ))}
-              </TextField>
-
+            {/* No shop picker. The report names its own branches in
+                INVENTLOCATIONID and each one is matched to the shop that
+                already carries that code, so asking the operator to say it
+                again only creates a way to get it wrong. */}
+            <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', md: '1fr auto auto' }, alignItems: 'start' }}>
               <Box>
                 <Button
                   component="label"
@@ -315,6 +477,7 @@ export function StockImportPage() {
                     onChange={(event) => {
                       setFile(event.target.files?.[0] ?? null)
                       setResult(null)
+                      setPreview(null)
                     }}
                   />
                 </Button>
@@ -326,23 +489,56 @@ export function StockImportPage() {
                 ) : null}
               </Box>
 
+              {/* Two steps, deliberately. A multi-sheet Stock Report is checked
+                  before replacement. Single-sheet files for a single shop import directly once a shop is selected. */}
+              <Button
+                variant={preview ? 'outlined' : 'contained'}
+                disabled={!file || previewMutation.isPending || importMutation.isPending}
+                onClick={() => previewMutation.mutate()}
+                sx={{ minWidth: previewMutation.isPending ? 240 : 130 }}
+              >
+                {previewMutation.isPending
+                  ? `Checking… (${liveTracker.buttonTimeText})`
+                  : preview
+                    ? 'Check again'
+                    : 'Check file'}
+              </Button>
+
               <Button
                 variant="contained"
-                disabled={!file || importMutation.isPending}
+                color="error"
+                disabled={!file || !preview || preview.valid_rows === 0 || importMutation.isPending}
                 onClick={() => setConfirmOpen(true)}
-                sx={{ minWidth: 150 }}
+                sx={{ minWidth: importMutation.isPending ? 240 : 170 }}
               >
-                {importMutation.isPending ? 'Importing…' : 'Import Stock'}
+                {importMutation.isPending
+                  ? `Replacing… (${liveTracker.buttonTimeText})`
+                  : 'Replace stock'}
               </Button>
             </Box>
+
+            {!preview && file && !previewMutation.isPending ? (
+              <Typography variant="caption" sx={{ display: 'block', mt: 1.5 }}>
+                Check the file first. Nothing is changed until you confirm the replacement.
+              </Typography>
+            ) : null}
+
+            {preview ? <ImportPreviewPanel preview={preview} /> : null}
+
+            {previewMutation.isPending ? (
+              <Box sx={{ mt: 2.5 }}>
+                <LinearProgress variant={progress > 0 && progress < 100 ? 'determinate' : 'indeterminate'} value={progress} />
+                <Typography variant="caption" sx={{ mt: 0.75, display: 'block', color: 'text.primary', fontWeight: 500 }}>
+                  {liveTracker.progressLineText}
+                </Typography>
+              </Box>
+            ) : null}
 
             {importMutation.isPending ? (
               <Box sx={{ mt: 2.5 }}>
                 <LinearProgress variant={progress > 0 && progress < 100 ? 'determinate' : 'indeterminate'} value={progress} />
-                <Typography variant="caption" sx={{ mt: 0.75, display: 'block' }}>
-                  {progress < 100
-                    ? `Uploading… ${progress}%`
-                    : 'Reading the workbook, validating rows and replacing stock. Large reports take a minute or two — please keep this tab open.'}
+                <Typography variant="caption" sx={{ mt: 0.75, display: 'block', color: 'text.primary', fontWeight: 500 }}>
+                  {liveTracker.progressLineText}
                 </Typography>
               </Box>
             ) : null}
@@ -398,7 +594,7 @@ export function StockImportPage() {
             {result.format === 'stock_report' ? (
               <>
                 <SummaryFigure label="Shops updated" value={result.shops} />
-                <SummaryFigure label="Products synced" value={result.itemsSynced} />
+                <SummaryFigure label="Products created" value={result.itemsCreated} />
               </>
             ) : null}
           </Stack>
@@ -410,6 +606,9 @@ export function StockImportPage() {
       </Typography>
 
       <DataTable
+        focusable
+        focusTitle="Stock Imports"
+        columnToggle
         columns={columns}
         rows={data?.data ?? []}
         rowKey={(row) => row.id}
@@ -450,24 +649,51 @@ export function StockImportPage() {
         }
       />
 
-      {/* Confirm the replacement — this is destructive for the shop's stock. */}
+      {/* Confirm the replacement — this is destructive for the shop's stock.
+          The shops are named outright rather than described, so nobody
+          confirms a replacement without seeing which branches it lands on. */}
       <ConfirmDialog
         open={confirmOpen}
-        title={selectedShop ? 'Replace stock for this shop?' : 'Replace stock for every shop in the file?'}
+        title={
+          preview
+            ? `Replace stock for ${preview.shops.length} shop${preview.shops.length === 1 ? '' : 's'}?`
+            : 'Replace stock for every shop in the file?'
+        }
         message={
-          selectedShop
-            ? `Importing this file will remove the stock ${selectedShop.label} currently holds and replace it with the contents of the file. This cannot be undone.`
+          preview
+            ? `The stock currently held by ${preview.shops
+                .map((shop) => shop.shop_code ?? shop.ax_location_id ?? 'this shop')
+                .join(', ')} will be deleted and replaced with ${formatNumber(
+                preview.valid_rows,
+              )} row(s) from this file. Shops the file does not mention are left untouched. This cannot be undone.`
             : 'Importing will remove the stock currently held by every shop the file covers and replace it with the contents of the file. Shops the file does not mention are left untouched. This cannot be undone.'
         }
-        confirmLabel="Import and replace"
+        confirmLabel="Replace stock"
         severity="warning"
         busy={importMutation.isPending}
         onClose={() => setConfirmOpen(false)}
         onConfirm={() => importMutation.mutate()}
         detail={
-          <Alert severity="info" sx={{ py: 0.5 }}>
-            If the file cannot be processed, nothing is changed and the existing stock stays exactly as it is.
-          </Alert>
+          <Stack spacing={1}>
+            {preview
+              ? preview.shops.map((shop) => (
+                  <Box
+                    key={shop.shop_id}
+                    sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, fontSize: '0.8125rem' }}
+                  >
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      {shop.shop_code ?? shop.ax_location_id}
+                    </Typography>
+                    <Typography variant="caption">
+                      {formatNumber(shop.existing_records)} existing → {formatNumber(shop.incoming_records)} new
+                    </Typography>
+                  </Box>
+                ))
+              : null}
+            <Alert severity="info" sx={{ py: 0.5 }}>
+              If the file cannot be processed, nothing is changed and the existing stock stays exactly as it is.
+            </Alert>
+          </Stack>
         }
       />
 
@@ -503,6 +729,153 @@ export function StockImportPage() {
           </Box>
         }
       />
+    </Box>
+  )
+}
+
+/**
+ * What the chosen file would do, shown before it is allowed to do it.
+ *
+ * The replacement impact is the point of this panel: for every branch the file
+ * covers, what that branch holds now and what would take its place. Everything
+ * else on it is there to answer "is this the right file?" without importing it
+ * to find out.
+ */
+export function ImportPreviewPanel({ preview }: { preview: StockPreview }) {
+  const clean = preview.invalid_rows === 0 && preview.unmatched_locations.length === 0
+
+  return (
+    <Box sx={{ mt: 3, pt: 2.5, borderTop: 1, borderColor: 'divider' }}>
+      <Stack direction="row" sx={{ alignItems: 'center', gap: 1, mb: 1.5 }}>
+        <Typography variant="subtitle2">Checked — nothing has been changed yet</Typography>
+        <Chip
+          size="small"
+          label={clean ? 'No issues found' : `${preview.invalid_rows + preview.unmatched_locations.length} issue(s)`}
+          color={clean ? 'success' : 'warning'}
+          variant="outlined"
+        />
+      </Stack>
+
+      <Stack direction="row" spacing={3} sx={{ flexWrap: 'wrap', rowGap: 1.5, mb: 2.5 }}>
+        <SummaryFigure label="Total rows" value={preview.total_rows} />
+        <SummaryFigure label="Valid rows" value={preview.valid_rows} tone="success" />
+        <SummaryFigure
+          label="Invalid rows"
+          value={preview.invalid_rows}
+          tone={preview.invalid_rows ? 'error' : undefined}
+        />
+        <SummaryFigure label="Locations detected" value={preview.locations_detected} />
+        <SummaryFigure label="Products matched" value={preview.items_matched} />
+        <SummaryFigure
+          label="Products without a GTIN"
+          value={preview.gtin_missing}
+          tone={preview.gtin_missing ? 'error' : undefined}
+        />
+      </Stack>
+
+      <Typography variant="subtitle2" sx={{ mb: 1 }}>
+        Replacement impact
+      </Typography>
+
+      <Stack divider={<Divider flexItem />} sx={{ mb: preview.unmatched_locations.length ? 2.5 : 0 }}>
+        {preview.shops.map((shop) => (
+          <Box
+            key={shop.shop_id}
+            sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, py: 1.25 }}
+          >
+            <Box sx={{ minWidth: 0 }}>
+              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                {shop.shop_code ?? shop.ax_location_id}
+                {shop.shop_name ? ` · ${shop.shop_name}` : ''}
+              </Typography>
+              {/* Says which code the row was matched on, so a shop mapped
+                  explicitly and one matched on its own code are told apart. */}
+              <Typography variant="caption">
+                {shop.ax_location_id
+                  ? `Warehouse code ${shop.ax_location_id}`
+                  : `Matched on shop code ${shop.shop_code ?? '—'}`}
+              </Typography>
+            </Box>
+
+            <Stack direction="row" spacing={2.5} sx={{ alignItems: 'center', flexShrink: 0 }}>
+              <Box sx={{ textAlign: 'right' }}>
+                <Typography variant="caption" sx={{ display: 'block' }}>
+                  Existing
+                </Typography>
+                <Typography variant="body2">{formatNumber(shop.existing_records)}</Typography>
+              </Box>
+              <Box sx={{ textAlign: 'right' }}>
+                <Typography variant="caption" sx={{ display: 'block' }}>
+                  New
+                </Typography>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  {formatNumber(shop.incoming_records)}
+                </Typography>
+              </Box>
+              {/* Said plainly, because it is destructive. */}
+              <Chip size="small" color="error" variant="outlined" label="Replace" sx={{ fontWeight: 600 }} />
+            </Stack>
+          </Box>
+        ))}
+      </Stack>
+
+      {preview.unmatched_locations.length ? (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          <AlertTitle>Unmatched locations</AlertTitle>
+          These warehouse codes appear in the file but no shop is linked to them. Their rows will not be imported and
+          will not be assigned to another shop.
+          <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 0.75, mt: 1 }}>
+            {preview.unmatched_locations.map((location) => (
+              <Chip
+                key={location.ax_location_id}
+                size="small"
+                color="warning"
+                variant="outlined"
+                label={`${location.ax_location_id} — ${formatNumber(location.rows)} row(s)`}
+              />
+            ))}
+          </Stack>
+        </Alert>
+      ) : null}
+
+      {preview.gtin_duplicates.length ? (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          <AlertTitle>Shared GTINs</AlertTitle>
+          A GTIN that more than one product answers to cannot be resolved to a single stock line when it is scanned.
+          <Stack sx={{ mt: 1, gap: 0.5 }}>
+            {preview.gtin_duplicates.slice(0, 5).map((duplicate) => (
+              <Typography key={duplicate.gtin} variant="caption">
+                {duplicate.gtin} → {duplicate.product_codes.join(', ')}
+              </Typography>
+            ))}
+          </Stack>
+        </Alert>
+      ) : null}
+
+      {preview.sample_errors.length ? (
+        <Box>
+          <Typography variant="subtitle2" sx={{ mb: 1 }}>
+            Why rows were rejected
+          </Typography>
+          <Stack divider={<Divider flexItem />} sx={{ maxHeight: 220, overflowY: 'auto' }}>
+            {preview.sample_errors.map((row) => (
+              <Box key={`${row.row_number}-${row.column_name}`} sx={{ py: 0.75 }}>
+                <Typography variant="caption" sx={{ display: 'block', fontWeight: 600 }}>
+                  Row {row.row_number} · {row.column_name}
+                </Typography>
+                <Typography variant="caption" sx={{ display: 'block', color: 'error.main' }}>
+                  {row.error_message}
+                </Typography>
+              </Box>
+            ))}
+          </Stack>
+          {preview.invalid_rows > preview.sample_errors.length ? (
+            <Typography variant="caption" sx={{ display: 'block', mt: 1 }}>
+              Showing the first {preview.sample_errors.length} of {formatNumber(preview.invalid_rows)} rejected rows.
+            </Typography>
+          ) : null}
+        </Box>
+      ) : null}
     </Box>
   )
 }

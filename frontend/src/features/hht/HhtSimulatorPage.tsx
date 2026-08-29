@@ -30,10 +30,13 @@ import { useDeviceOptions, useShopOptions } from '@/hooks/useOptions'
 import { apiErrorMessage, get, post } from '@/services/apiClient'
 import { formatQuantity } from '@/utils/format'
 import type { ItemStock } from '@/types'
+import { neutral, semantic } from '@/theme'
 
 interface ScanLine {
   key: string
   barcode: string | null
+  /** The code printed on the carton, and what a handheld actually scans. */
+  gtin: string | null
   product_code: string | null
   description: string
   batch: string
@@ -78,6 +81,9 @@ export function HhtSimulatorPage() {
   const [lines, setLines] = useState<ScanLine[]>([])
   const [lastResult, setLastResult] = useState<SubmissionResult | null>(null)
 
+  const [scanCode, setScanCode] = useState('')
+  const [scanQty, setScanQty] = useState('')
+  const [scanNote, setScanNote] = useState<string | null>(null)
   const [unknownBarcode, setUnknownBarcode] = useState('')
   const [unknownDescription, setUnknownDescription] = useState('')
   const [unknownQty, setUnknownQty] = useState('')
@@ -109,6 +115,7 @@ export function HhtSimulatorPage() {
         hht_user: countedBy || undefined,
         app_version: '1.4.2',
         items: lines.map((line) => ({
+          gtin: line.gtin,
           barcode: line.barcode,
           product_code: line.product_code,
           description: line.description,
@@ -140,6 +147,7 @@ export function HhtSimulatorPage() {
       source.map((row) => ({
         key: `stock-${row.id}`,
         barcode: row.barcode,
+        gtin: row.gtin,
         product_code: row.product_code,
         description: row.description,
         batch: row.batch,
@@ -164,6 +172,68 @@ export function HhtSimulatorPage() {
     )
   }
 
+  /**
+   * A scan, the way a handheld makes one.
+   *
+   * The GTIN alone is entered; the item, its batch and its expiry come back
+   * from the shop's stock rather than being keyed in. Where the shop holds the
+   * product in more than one batch the code cannot decide between them, so the
+   * scan is reported as ambiguous instead of one being chosen silently.
+   */
+  const scanMutation = useMutation({
+    mutationFn: async () =>
+      (
+        await get<ItemStock[]>('/item-stocks/lookup', {
+          code: scanCode.trim(),
+          shop_id: shopId,
+        })
+      ),
+    onSuccess: (response) => {
+      const matches = response.data ?? []
+
+      if (matches.length === 0) {
+        setScanNote(`Nothing in this shop answers to ${scanCode.trim()}.`)
+
+        return
+      }
+
+      if (matches.length > 1) {
+        setScanNote(
+          `${scanCode.trim()} is held in ${matches.length} batches. Batch and expiry cannot be filled in automatically — pick the line from the shelf list instead.`,
+        )
+
+        return
+      }
+
+      const row = matches[0]
+      const quantity = scanQty === '' ? Number(row.system_qty) : Number(scanQty)
+
+      setLines((current) => [
+        ...current,
+        {
+          key: `scan-${row.id}-${current.length}`,
+          barcode: row.barcode,
+          gtin: row.gtin,
+          product_code: row.product_code,
+          description: row.description,
+          batch: row.batch,
+          expiry: row.expiry_date,
+          uom: row.uom,
+          shelf_location: row.shelf_location,
+          system_qty: Number(row.system_qty),
+          physical_quantity: quantity,
+        },
+      ])
+
+      setScanNote(
+        `${row.product_code} · batch ${row.batch || '—'}${row.expiry_date ? ` · expires ${row.expiry_date}` : ''}`,
+      )
+      setScanCode('')
+      setScanQty('')
+    },
+    onError: (caught) => setScanNote(apiErrorMessage(caught, 'The code could not be looked up.')),
+  })
+
   function addUnknownItem() {
     if (unknownDescription.trim() === '' || unknownQty === '') return
 
@@ -172,6 +242,7 @@ export function HhtSimulatorPage() {
       {
         key: `unknown-${Date.now()}`,
         barcode: unknownBarcode || null,
+        gtin: null,
         product_code: null,
         description: unknownDescription,
         batch: '',
@@ -349,6 +420,61 @@ export function HhtSimulatorPage() {
 
               <Divider sx={{ my: 2.5 }} />
 
+              <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
+                Scan a GTIN
+              </Typography>
+              <Typography variant="caption" sx={{ display: 'block', mb: 1.5 }}>
+                The code printed on the carton. The item, its batch and its expiry are looked up from the shop's stock.
+              </Typography>
+
+              <Stack direction="row" spacing={1.5}>
+                <TextField
+                  label="GTIN"
+                  size="small"
+                  value={scanCode}
+                  onChange={(event) => {
+                    setScanCode(event.target.value)
+                    setScanNote(null)
+                  }}
+                  onKeyDown={(event) => {
+                    // A handheld ends every scan with Enter.
+                    if (event.key === 'Enter' && scanCode.trim() !== '' && shopId !== '') {
+                      event.preventDefault()
+                      scanMutation.mutate()
+                    }
+                  }}
+                  placeholder="08840149636445"
+                  fullWidth
+                />
+                <TextField
+                  label="Qty"
+                  type="number"
+                  size="small"
+                  value={scanQty}
+                  onChange={(event) => setScanQty(event.target.value)}
+                  slotProps={{ htmlInput: { min: 0 } }}
+                  sx={{ width: 110, flexShrink: 0 }}
+                />
+                <Button
+                  variant="outlined"
+                  size="small"
+                  startIcon={<QrCodeScannerRoundedIcon />}
+                  onClick={() => scanMutation.mutate()}
+                  disabled={scanCode.trim() === '' || shopId === '' || scanMutation.isPending}
+                  sx={{ flexShrink: 0 }}
+                >
+                  {scanMutation.isPending ? 'Looking up…' : 'Scan'}
+                </Button>
+              </Stack>
+
+              {scanNote ? (
+                <Typography variant="caption" sx={{ display: 'block', mt: 1 }}>
+                  {scanNote}
+                </Typography>
+              ) : null}
+
+              <Divider sx={{ my: 2.5 }} />
+
               <Typography variant="subtitle2" sx={{ mb: 1.5 }}>
                 Add an item not in the stock file
               </Typography>
@@ -514,14 +640,15 @@ export function HhtSimulatorPage() {
                           sx={{
                             width: 76,
                             flexShrink: 0,
-                            color: variance === 0 ? 'text.secondary' : variance > 0 ? '#1B6E3C' : '#B3261E',
-                            bgcolor: variance === 0 ? '#ECEFEE' : variance > 0 ? '#E4F3EA' : '#FBE7E5',
+                            color: variance === 0 ? 'text.secondary' : variance > 0 ? semantic.success.fg : semantic.error.fg,
+                            bgcolor: variance === 0 ? neutral[100] : variance > 0 ? semantic.success.bg : semantic.error.bg,
                           }}
                         />
 
                         <Tooltip title="Remove line">
                           <IconButton
                             size="small"
+                            aria-label="Remove this line from the submission"
                             onClick={() => setLines((current) => current.filter((_, i) => i !== index))}
                           >
                             <DeleteOutlineRoundedIcon fontSize="small" />

@@ -32,7 +32,7 @@ class VarianceController extends Controller
         $this->applySort(
             $query,
             $request,
-            ['product_code', 'description', 'system_qty', 'physical_qty', 'variance_qty', 'batch', 'expiry_date', 'id'],
+            ['product_code', 'description', 'system_qty', 'physical_qty', 'loose_qty', 'variance_qty', 'batch', 'expiry_date', 'id'],
             'variance_qty',
             'asc'
         );
@@ -51,16 +51,20 @@ class VarianceController extends Controller
     {
         $base = $this->baseQuery($request, ignoreDirection: true);
 
-        $positive = (clone $base)->where('variance_qty', '>', 0);
-        $negative = (clone $base)->where('variance_qty', '<', 0);
+        // Variance is System - (Physical + Loose), so a shortage is positive
+        // and an excess negative. The keys say short and excess rather than
+        // positive and negative so the contract states the business meaning
+        // and cannot be read the wrong way round.
+        $short = (clone $base)->where('variance_qty', '>', 0);
+        $excess = (clone $base)->where('variance_qty', '<', 0);
 
         return [
             'total_lines' => (clone $base)->count(),
-            'positive_count' => (clone $positive)->count(),
-            'positive_quantity' => (float) (clone $positive)->sum('variance_qty'),
-            'negative_count' => (clone $negative)->count(),
-            'negative_quantity' => (float) (clone $negative)->sum('variance_qty'),
-            'zero_count' => (clone $base)->where('variance_qty', '=', 0)->count(),
+            'short_count' => (clone $short)->count(),
+            'short_quantity' => (float) (clone $short)->sum('variance_qty'),
+            'excess_count' => (clone $excess)->count(),
+            'excess_quantity' => (float) (clone $excess)->sum('variance_qty'),
+            'matched_count' => (clone $base)->where('variance_qty', '=', 0)->count(),
             'net_variance' => (float) (clone $base)->sum('variance_qty'),
             'pending_adjustment' => (clone $base)
                 ->where('variance_qty', '!=', 0)
@@ -112,7 +116,7 @@ class VarianceController extends Controller
 
         if (! $ignoreDirection) {
             // Default view shows lines that actually differ; the client can ask
-            // for positive, negative, zero or all explicitly.
+            // for short, excess, zero or all explicitly.
             $direction = $request->query('variance', 'non_zero');
             $query->varianceDirection($direction === 'all' ? null : $direction);
         }

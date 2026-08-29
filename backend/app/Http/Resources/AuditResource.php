@@ -15,6 +15,10 @@ class AuditResource extends JsonResource
         return [
             'id' => $this->id,
             'audit_number' => $this->audit_number,
+            // The handheld's own reference, derived for audits that predate the
+            // format so a screen never has to choose between two shapes.
+            'audit_ref' => $this->reference(),
+            'source' => $this->source,
             'shop_id' => $this->shop_id,
             'shop_code' => $this->whenLoaded('shop', fn () => $this->shop->shop_code),
             'shop_name' => $this->whenLoaded('shop', fn () => $this->shop->shop_name),

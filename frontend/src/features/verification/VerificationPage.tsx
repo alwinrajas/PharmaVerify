@@ -90,6 +90,15 @@ export function VerificationPage() {
       ),
     },
     {
+      // Counted alongside the whole units, never folded into them.
+      key: 'loose_qty',
+      label: 'Loose',
+      sortable: true,
+      align: 'right',
+      width: 90,
+      render: (line) => (Number(line.loose_qty) === 0 ? '—' : formatQuantity(line.loose_qty)),
+    },
+    {
       key: 'variance_qty',
       label: 'Variance',
       sortable: true,
@@ -120,7 +129,7 @@ export function VerificationPage() {
         <Stack direction="row" spacing={0.25} justifyContent="flex-end">
           {can(PERMISSIONS.verificationEdit) ? (
             <Tooltip title="Verify or correct">
-              <IconButton size="small" onClick={() => setEditingLine(line)}>
+              <IconButton size="small" aria-label="Verify this line" onClick={() => setEditingLine(line)}>
                 <EditRoundedIcon fontSize="small" />
               </IconButton>
             </Tooltip>
@@ -131,6 +140,7 @@ export function VerificationPage() {
               <span>
                 <IconButton
                   size="small"
+                  aria-label="Post an adjustment for this line"
                   disabled={line.adjustment_status === 'adjusted' || Number(line.variance_qty) === 0}
                   onClick={() => setAdjustLines([line])}
                 >
@@ -141,7 +151,7 @@ export function VerificationPage() {
           ) : null}
 
           <Tooltip title="Open audit">
-            <IconButton size="small" onClick={() => navigate(`/audits/${line.audit_id}`)}>
+            <IconButton size="small" aria-label="Open the audit this line belongs to" onClick={() => navigate(`/audits/${line.audit_id}`)}>
               <OpenInNewRoundedIcon fontSize="small" />
             </IconButton>
           </Tooltip>
@@ -164,6 +174,10 @@ export function VerificationPage() {
       </Alert>
 
       <DataTable
+        focusable
+        focusTitle="Stock Verification"
+        density="compact"
+        columnToggle
         columns={columns}
         rows={data?.data ?? []}
         rowKey={(line) => line.id}
