@@ -21,10 +21,11 @@ import type { StockAdjustment } from '@/types'
 /**
  * The history of adjustments that have already been posted.
  *
- * Adjustments are made from the Variance screen or from an audit; nothing here
- * waits for approval, because the business does not have an approval step.
+ * Adjustments are made from the Stock Adjustment screen or from an audit;
+ * nothing here waits for approval, because the business does not have an
+ * approval step.
  */
-export function AdjustmentsPage() {
+export function StockAdjustmentLogPage() {
   const { can } = useAuth()
   const { enqueueSnackbar } = useSnackbar()
   const table = useTableQuery({ sortBy: 'adjusted_at', sortDir: 'desc' })
@@ -134,13 +135,13 @@ export function AdjustmentsPage() {
   return (
     <Box>
       <PageHeader
-        title="Stock Adjustment"
+        title="Stock Adj (Audit Log)"
         description="Adjustments already applied to system stock, with the quantity before and after each correction."
-        crumbs={[{ label: 'Stock Verification' }, { label: 'Stock Adjustment' }]}
+        crumbs={[{ label: 'Stock Verification' }, { label: 'Stock Adj (Audit Log)' }]}
         actions={
           <>
-            <Button component={RouterLink} to="/variance" variant="contained" startIcon={<CompareArrowsRoundedIcon />}>
-              Adjust from Variance
+            <Button component={RouterLink} to="/stock-adjustment" variant="contained" startIcon={<CompareArrowsRoundedIcon />}>
+              Open Stock Adjustment
             </Button>
             {can(PERMISSIONS.reportsExport) ? (
               <Button
@@ -163,7 +164,7 @@ export function AdjustmentsPage() {
 
       <DataTable
         focusable
-        focusTitle="Stock Adjustments"
+        focusTitle="Stock Adj (Audit Log)"
         density="compact"
         columnToggle
         columns={columns}
@@ -181,10 +182,10 @@ export function AdjustmentsPage() {
         sortDir={table.sortDir}
         onSortChange={table.setSort}
         emptyTitle="No adjustments posted"
-        emptyDescription="Open the Variance screen to post an adjustment against a counted line."
+        emptyDescription="Open Stock Adjustment to post an adjustment against a counted line."
         emptyAction={
-          <Button component={RouterLink} to="/variance" variant="contained" size="small">
-            Open variance
+          <Button component={RouterLink} to="/stock-adjustment" variant="contained" size="small">
+            Open Stock Adjustment
           </Button>
         }
         toolbar={

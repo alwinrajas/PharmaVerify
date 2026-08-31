@@ -134,6 +134,50 @@ class ItemImportTest extends TestCase
         $this->assertSame(0, Item::count());
     }
 
+    /** The full three-sheet Stock Report still reads its Item Master sheet. */
+    public function test_the_item_master_sheet_is_read_out_of_a_multi_sheet_workbook(): void
+    {
+        $user = $this->userWithRole();
+
+        $file = $this->workbookWithSheets([
+            'stock' => ['INVENTLOCATIONID' => ['PHM001'], 'ITEMID' => ['MED-2001'], 'INVENTBATCHID' => ['B1'], 'LOWERQTY' => [10], 'TOTALCOST' => [100]],
+            'all batches' => ['ITEMID' => ['MED-2001'], 'INVENTBATCHID' => ['B1'], 'ITEMBARCODE' => ['8901234500011']],
+            'Item Master' => null,
+        ], [['MED-2001', 'Amoxicillin 250mg Capsule', 'STRIP', 45.0, '8901234500011']]);
+
+        $this->actingAs($user)
+            ->post('/api/items/import', ['file' => $file], ['Accept' => 'application/json'])
+            ->assertCreated();
+
+        $this->assertNotNull(Item::where('product_code', 'MED-2001')->first());
+    }
+
+    /**
+     * A workbook of stock sheets is a stock file the user reached for on the
+     * wrong screen. It must fail clearly, naming the sheets it actually found,
+     * rather than trying to import stock columns as products.
+     */
+    public function test_a_workbook_without_an_item_master_sheet_fails_clearly_and_creates_nothing(): void
+    {
+        $user = $this->userWithRole();
+
+        $file = $this->workbookWithSheets([
+            'stock' => ['INVENTLOCATIONID' => ['PHM001'], 'ITEMID' => ['MED-3001'], 'INVENTBATCHID' => ['B1'], 'LOWERQTY' => [10], 'TOTALCOST' => [100]],
+            'all batches' => ['ITEMID' => ['MED-3001'], 'INVENTBATCHID' => ['B1'], 'ITEMBARCODE' => ['8901234500099']],
+        ], []);
+
+        $response = $this->actingAs($user)
+            ->post('/api/items/import', ['file' => $file], ['Accept' => 'application/json'])
+            ->assertStatus(422);
+
+        $this->assertSame(
+            'The Item Master sheet was not found. This file has the sheets: stock, all batches. Items are imported from the Item Master sheet only; stock and batch data is imported separately from Item Stock Import.',
+            $response->json('message')
+        );
+
+        $this->assertSame(0, Item::count());
+    }
+
     // ---------------------------------------------------------------- helpers
 
     /**
@@ -173,5 +217,78 @@ class ItemImportTest extends TestCase
         $spreadsheet->disconnectWorksheets();
 
         return new UploadedFile($path, 'Item master.xlsx', null, null, true);
+    }
+
+    /**
+     * Builds a workbook with an arbitrary set of sheets, so the "sheet not
+     * found" behaviour can be exercised against something that looks like a
+     * real Stock Report or Stock Import export.
+     *
+     * @param  array<string, array<string, array<int, mixed>>|null>  $sheets  sheet name => [heading => values], or null for the standard Item Master sheet
+     * @param  array<int, array<int, mixed>>  $itemRows  [code, name, uom, salesPrice, gtin], used for any null entry above
+     */
+    private function workbookWithSheets(array $sheets, array $itemRows): UploadedFile
+    {
+        $spreadsheet = new Spreadsheet;
+        $first = true;
+
+        foreach ($sheets as $name => $columns) {
+            $sheet = $first ? $spreadsheet->getActiveSheet() : $spreadsheet->createSheet();
+            $sheet->setTitle($name);
+            $first = false;
+
+            if ($columns === null) {
+                $this->writeItemMasterSheet($sheet, $itemRows);
+
+                continue;
+            }
+
+            $column = 1;
+            foreach ($columns as $heading => $values) {
+                $sheet->setCellValue([$column, 1], $heading);
+
+                foreach ($values as $rowIndex => $value) {
+                    $sheet->setCellValue([$column, $rowIndex + 2], $value);
+                }
+
+                $column++;
+            }
+        }
+
+        $path = tempnam(sys_get_temp_dir(), 'pv-workbook-').'.xlsx';
+        (new Xlsx($spreadsheet))->save($path);
+        $spreadsheet->disconnectWorksheets();
+
+        return new UploadedFile($path, 'Stock Report.xlsx', null, null, true);
+    }
+
+    /**
+     * @param  array<int, array<int, mixed>>  $items  [code, name, uom, salesPrice, gtin]
+     */
+    private function writeItemMasterSheet(\PhpOffice\PhpSpreadsheet\Worksheet\Worksheet $sheet, array $items): void
+    {
+        $headings = [
+            'ITEMID', 'ITEMNAME', 'ITEMBUYERGROUPID', 'INVUNIT', 'COSTPRICE',
+            'PURCHSASEUNIT', 'PURCHASEPRICE', 'SALESUNIT', 'SALESPRICE',
+            'CATEGORYNAME', 'SUBCATEGORYNAME', 'SUBCATEGORYID', 'SUPPLIERID',
+            'FACTOR', 'GLOBALTRADEITEMNUMBER',
+        ];
+
+        foreach ($headings as $column => $heading) {
+            $sheet->setCellValue([$column + 1, 1], $heading);
+        }
+
+        foreach ($items as $index => $item) {
+            $row = [
+                $item[0], $item[1], null, $item[2], 0,
+                $item[2], 0, $item[2], $item[3],
+                null, null, null, null,
+                1, $item[4] ?? null,
+            ];
+
+            foreach ($row as $column => $value) {
+                $sheet->setCellValue([$column + 1, $index + 2], $value);
+            }
+        }
     }
 }

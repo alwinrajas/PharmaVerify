@@ -28,14 +28,20 @@ describe('AdjustDialog', () => {
     }
   }
 
-  it('shows the quantity it is moving from and to', () => {
+  it('shows the resulting stock movement', () => {
     setup()
 
     expect(screen.getByText('Atorvastatin 10mg Tablet')).toBeInTheDocument()
+    expect(screen.getByText('Current stock')).toBeInTheDocument()
+    expect(screen.getByText('Physical count')).toBeInTheDocument()
+    expect(screen.getByText('Adjustment')).toBeInTheDocument()
+    expect(screen.getByText('New stock')).toBeInTheDocument()
+
+    // system 125, physical 120, loose 0: current 125, counted 120 both as the
+    // physical count and the resulting new stock, and an adjustment of -5.
     expect(screen.getByText('125')).toBeInTheDocument()
-    expect(screen.getByText('120')).toBeInTheDocument()
-    // 125 held against 120 counted is five short, and short is positive.
-    expect(screen.getByText('5')).toBeInTheDocument()
+    expect(screen.getAllByText('120')).toHaveLength(2)
+    expect(screen.getByText('-5')).toBeInTheDocument()
   })
 
   it('warns plainly that the change is immediate and unapproved', () => {
@@ -139,5 +145,43 @@ describe('AdjustDialog', () => {
     // A readable sentence, not a raw network error.
     expect(await screen.findByText(/something went wrong/i)).toBeInTheDocument()
     expect(onPosted).not.toHaveBeenCalled()
+  })
+
+  it('surfaces a stock-drift refusal and reposts with it acknowledged on confirm', async () => {
+    let calls = 0
+    let acknowledgedOnSecondCall = false
+
+    server.use(
+      http.post('/api/adjustments', async ({ request }) => {
+        calls++
+        const body = (await request.json()) as Record<string, unknown>
+
+        if (!body.acknowledge_drift) {
+          return HttpResponse.json(
+            {
+              success: false,
+              message:
+                'System stock for MED-1005 has changed since this audit was counted: the audit saw 100, stock now holds 110. Adjusting will replace 110 with the counted 120. Confirm to proceed.',
+            },
+            { status: 422 },
+          )
+        }
+
+        acknowledgedOnSecondCall = body.acknowledge_drift === true
+        return HttpResponse.json({ success: true, message: 'Adjustment posted.', data: {} }, { status: 201 })
+      }),
+    )
+
+    const { user, onPosted } = setup()
+
+    await user.click(screen.getByRole('button', { name: /post adjustment/i }))
+
+    expect(await screen.findByText(/has changed since this audit was counted/i)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /confirm and post/i }))
+
+    await waitFor(() => expect(onPosted).toHaveBeenCalledOnce())
+    expect(calls).toBe(2)
+    expect(acknowledgedOnSecondCall).toBe(true)
   })
 })

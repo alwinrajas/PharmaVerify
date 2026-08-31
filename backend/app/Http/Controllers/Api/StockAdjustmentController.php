@@ -60,15 +60,19 @@ class StockAdjustmentController extends Controller
             'audit_line_ids' => ['required_without:audit_line_id', 'nullable', 'array', 'min:1'],
             'audit_line_ids.*' => ['integer', 'exists:audit_lines,id'],
             'reason' => ['nullable', 'string', 'max:500'],
+            // Confirms the caller has seen and accepted that system stock moved
+            // after this audit line was counted; see StockAdjustmentService.
+            'acknowledge_drift' => ['nullable', 'boolean'],
         ]);
 
         $reason = $validated['reason'] ?? null;
+        $acknowledgeDrift = (bool) ($validated['acknowledge_drift'] ?? false);
 
         if (! empty($validated['audit_line_id'])) {
             $line = AuditLine::with('audit')->findOrFail($validated['audit_line_id']);
             $this->assertVisible($request, $line);
 
-            $adjustment = $this->service->adjustLine($line, $request->user(), $reason);
+            $adjustment = $this->service->adjustLine($line, $request->user(), $reason, $acknowledgeDrift);
 
             return ApiResponse::success(
                 new StockAdjustmentResource($adjustment),

@@ -40,3 +40,10 @@ Stock report.xlsx
 .DS_Store
 Thumbs.db
 *.log
+
+# Release payloads produced by build/Build-Release.ps1
+/dist/
+
+# The bundled PHP runtime is fetched by installer/scripts/Get-PhpRuntime.ps1,
+# not stored here: ~90MB of binaries that a script reproduces exactly.
+/installer/runtime/

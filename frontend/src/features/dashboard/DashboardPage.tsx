@@ -68,7 +68,7 @@ export function DashboardPage() {
       label: 'Variance Items',
       value: cards.variance_items,
       icon: CompareArrowsRoundedIcon,
-      to: '/variance',
+      to: '/stock-adjustment',
       tone: cards.variance_items > 0 ? 'attention' : 'positive',
       hint: 'Physical count differs from system',
     },
@@ -76,7 +76,7 @@ export function DashboardPage() {
       label: 'Pending Adjustments',
       value: cards.pending_adjustments,
       icon: TuneRoundedIcon,
-      to: '/adjustments',
+      to: '/stock-adjustment-log',
       tone: cards.pending_adjustments > 0 ? 'attention' : 'positive',
       hint: 'Variance not yet posted to stock',
     },
@@ -93,8 +93,8 @@ export function DashboardPage() {
     { label: 'Import Stock', to: '/stock-import', icon: UploadFileRoundedIcon, permission: 'stock.import' },
     { label: 'View Audits', to: '/audits', icon: FactCheckRoundedIcon, permission: 'audits.view' },
     { label: 'Verify Stock', to: '/verification', icon: RuleRoundedIcon, permission: 'audits.view' },
-    { label: 'View Variance', to: '/variance', icon: CompareArrowsRoundedIcon, permission: 'variance.view' },
-    { label: 'Stock Adjustment', to: '/adjustments', icon: TuneRoundedIcon, permission: 'adjustments.view' },
+    { label: 'Stock Adjustment', to: '/stock-adjustment', icon: CompareArrowsRoundedIcon, permission: 'variance.view' },
+    { label: 'Stock Adj (Audit Log)', to: '/stock-adjustment-log', icon: TuneRoundedIcon, permission: 'adjustments.view' },
     { label: 'Generate Reports', to: '/reports', icon: AssessmentRoundedIcon, permission: 'reports.view' },
   ].filter((action) => can(action.permission))
 
@@ -245,12 +245,12 @@ export function DashboardPage() {
 
             <Button
               component={RouterLink}
-              to="/variance"
+              to="/stock-adjustment"
               size="small"
               endIcon={<ArrowForwardRoundedIcon fontSize="small" />}
               sx={{ mt: 2 }}
             >
-              Open variance
+              Open Stock Adjustment
             </Button>
           </CardContent>
         </Card>
@@ -344,7 +344,7 @@ export function DashboardPage() {
           <CardContent sx={{ p: 2.25 }}>
             <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
               <Typography variant="subtitle1">Recent adjustments</Typography>
-              <Button component={RouterLink} to="/adjustments" size="small">
+              <Button component={RouterLink} to="/stock-adjustment-log" size="small">
                 View all
               </Button>
             </Stack>

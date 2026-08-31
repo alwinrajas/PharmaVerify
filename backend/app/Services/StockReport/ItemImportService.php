@@ -120,8 +120,22 @@ class ItemImportService
             throw new BusinessRuleException('The file contains no readable sheet.');
         }
 
-        // A single-sheet file is taken at face value.
-        return $sheets[0];
+        // A single-sheet file is taken at face value: whatever is on it is what
+        // the user meant to import, named "Item Master" or not.
+        if (count($sheets) === 1) {
+            return $sheets[0];
+        }
+
+        // Several sheets and none of them is Item Master means this is not an
+        // item file at all — most often it is the Stock Import workbook (stock
+        // + all batches), reached for on the wrong screen. Naming the sheet we
+        // needed alongside the sheets actually present is what tells the user
+        // which screen they wanted, rather than letting the import fail later
+        // with a confusing "missing column" error once it has guessed wrong.
+        throw new BusinessRuleException(sprintf(
+            'The Item Master sheet was not found. This file has the sheets: %s. Items are imported from the Item Master sheet only; stock and batch data is imported separately from Item Stock Import.',
+            implode(', ', $sheets)
+        ));
     }
 
     /**

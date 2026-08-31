@@ -6,9 +6,9 @@ import UploadFileRoundedIcon from '@mui/icons-material/UploadFileRounded'
 import Inventory2RoundedIcon from '@mui/icons-material/Inventory2Rounded'
 import PhonelinkRingRoundedIcon from '@mui/icons-material/PhonelinkRingRounded'
 import FactCheckRoundedIcon from '@mui/icons-material/FactCheckRounded'
-import RuleRoundedIcon from '@mui/icons-material/RuleRounded'
-import CompareArrowsRoundedIcon from '@mui/icons-material/CompareArrowsRounded'
 import TuneRoundedIcon from '@mui/icons-material/TuneRounded'
+import HistoryEduRoundedIcon from '@mui/icons-material/HistoryEduRounded'
+import RuleRoundedIcon from '@mui/icons-material/RuleRounded'
 import PlaylistAddCheckRoundedIcon from '@mui/icons-material/PlaylistAddCheckRounded'
 import AssessmentRoundedIcon from '@mui/icons-material/AssessmentRounded'
 import CloudUploadRoundedIcon from '@mui/icons-material/CloudUploadRounded'
@@ -52,14 +52,18 @@ export const navigation: NavSection[] = [
     ],
   },
   {
+    // Verification and Variance were removed from this menu deliberately, not
+    // deleted: Verification is still reachable at /verification from the audit
+    // detail flow, and Variance's job — reviewing a counted line and posting
+    // against it — is now Stock Adjustment below, so a separate menu entry for
+    // it would just be the same screen listed twice.
     heading: 'Stock Verification',
     items: [
       { label: 'Item Stock', to: '/item-stock', icon: Inventory2RoundedIcon, permission: PERMISSIONS.stockView, context: 'System stock by shop, batch and expiry' },
       { label: 'HHT Submissions', to: '/hht', icon: PhonelinkRingRoundedIcon, permission: PERMISSIONS.hhtView, context: 'Counts received from handheld devices' },
-      { label: 'Stock Audit', to: '/audits', icon: FactCheckRoundedIcon, permission: PERMISSIONS.auditsView, context: 'Counted lines by shop, device and audit number' },
-      { label: 'Verification', to: '/verification', icon: RuleRoundedIcon, permission: PERMISSIONS.auditsView, context: 'Review counted lines against system stock' },
-      { label: 'Variance', to: '/variance', icon: CompareArrowsRoundedIcon, permission: PERMISSIONS.varianceView, context: 'Physical count compared with system stock' },
-      { label: 'Stock Adjustment', to: '/adjustments', icon: TuneRoundedIcon, permission: PERMISSIONS.adjustmentsView, context: 'Post variance back to system stock' },
+      { label: 'Stock Audit', to: '/audits', icon: FactCheckRoundedIcon, permission: PERMISSIONS.auditsView, context: 'Scan and count a shop live from the browser, or review what has come in' },
+      { label: 'Stock Adjustment', to: '/stock-adjustment', icon: TuneRoundedIcon, permission: PERMISSIONS.varianceView, context: 'Physical count compared with system stock, and post the correction' },
+      { label: 'Stock Adj (Audit Log)', to: '/stock-adjustment-log', icon: HistoryEduRoundedIcon, permission: PERMISSIONS.adjustmentsView, context: 'History of adjustments already posted' },
       { label: 'Stock Take', to: '/stock-take', icon: PlaylistAddCheckRoundedIcon, permission: PERMISSIONS.stockTakeView, context: 'Counts recorded outside a device audit' },
     ],
   },
@@ -90,6 +94,15 @@ export interface ScreenIdentity {
 
 /** Reachable by URL, but deliberately absent from the sidebar. */
 const UNLISTED_SCREENS: Array<ScreenIdentity & { to: string }> = [
+  {
+    // Kept reachable from the audit detail flow, but removed from the menu:
+    // see the comment on the Stock Verification section above.
+    to: '/verification',
+    label: 'Verification',
+    icon: RuleRoundedIcon,
+    section: 'Stock Verification',
+    context: 'Review counted lines against system stock',
+  },
   {
     to: '/hht/simulator',
     label: 'HHT Simulator',

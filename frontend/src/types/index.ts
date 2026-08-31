@@ -172,6 +172,26 @@ export interface AuditLine {
   remarks: string | null
 }
 
+/** One batch of a product, as found by the counting workspace's barcode lookup. */
+export interface AuditLookupMatch {
+  item_stock_id: number
+  product_code: string
+  description: string
+  barcode: string | null
+  gtin: string | null
+  batch: string
+  expiry_date: string | null
+  system_qty: number
+  uom: string
+  price: number
+  shelf_location: string | null
+}
+
+export interface AuditLookupResult {
+  found: boolean
+  matches: AuditLookupMatch[]
+}
+
 export interface HhtSubmission {
   id: number
   submission_uid: string

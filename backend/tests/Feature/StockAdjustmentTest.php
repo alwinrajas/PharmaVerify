@@ -132,6 +132,114 @@ class StockAdjustmentTest extends TestCase
         $this->assertSame(0, StockAdjustment::count());
     }
 
+    /**
+     * Stock moved between the count and the adjustment: the audit saw 100, the
+     * shop now holds 110. Posting without acknowledging that must be refused,
+     * and refusing must leave both the stock and the ledger untouched — a
+     * concurrency conflict is not allowed to make a silent, partial change.
+     */
+    public function test_drift_between_the_audited_and_current_stock_is_rejected(): void
+    {
+        [$user, $line, $stock] = $this->countedShortByFive();
+        $stock->update(['system_qty' => 110]);
+
+        $response = $this->actingAs($user)->postJson('/api/adjustments', [
+            'audit_line_id' => $line->id,
+        ]);
+
+        $response->assertStatus(422);
+        $message = $response->json('message');
+        $this->assertStringContainsString('has changed since this audit was counted', $message);
+        $this->assertStringContainsString('audit saw 100', $message);
+        $this->assertStringContainsString('stock now holds 110', $message);
+
+        $this->assertEquals(110, $stock->fresh()->system_qty, 'A refused adjustment must not touch stock.');
+        $this->assertSame(0, StockAdjustment::count());
+        $this->assertSame(AuditLine::ADJUSTMENT_NOT_ADJUSTED, $line->fresh()->adjustment_status);
+    }
+
+    /** Acknowledging the drift proceeds, and the ledger keeps a record of it. */
+    public function test_acknowledging_the_drift_proceeds_and_records_it_in_the_reason(): void
+    {
+        [$user, $line, $stock] = $this->countedShortByFive();
+        $stock->update(['system_qty' => 110]);
+
+        $response = $this->actingAs($user)->postJson('/api/adjustments', [
+            'audit_line_id' => $line->id,
+            'reason' => 'Physical count confirmed by supervisor',
+            'acknowledge_drift' => true,
+        ]);
+
+        $response->assertCreated();
+
+        // The counted total, 95, replaces whatever stock held at the moment of
+        // adjustment — the count remains the truth once the drift is seen.
+        $this->assertEquals(95, $stock->fresh()->system_qty);
+
+        $adjustment = StockAdjustment::firstOrFail();
+        $this->assertEquals(110, $adjustment->old_system_qty);
+        $this->assertEquals(95, $adjustment->new_system_qty);
+        $this->assertStringContainsString('Physical count confirmed by supervisor', $adjustment->reason);
+        $this->assertStringContainsString('Stock had changed from 100 to 110 before this adjustment.', $adjustment->reason);
+    }
+
+    /** Regression guard: acknowledging drift does not reopen a line already adjusted. */
+    public function test_a_second_adjustment_is_still_rejected_even_with_acknowledge_drift(): void
+    {
+        [$user, $line] = $this->countedShortByFive();
+
+        $this->actingAs($user)->postJson('/api/adjustments', ['audit_line_id' => $line->id])->assertCreated();
+
+        $response = $this->actingAs($user)->postJson('/api/adjustments', [
+            'audit_line_id' => $line->id,
+            'acknowledge_drift' => true,
+        ]);
+
+        $response->assertStatus(422);
+        $this->assertStringContainsString('already been adjusted', $response->json('message'));
+        $this->assertSame(1, StockAdjustment::count());
+    }
+
+    /** A line with no variance still adjusts cleanly, with nothing to acknowledge. */
+    public function test_a_zero_variance_line_adjusts_without_error(): void
+    {
+        $user = $this->userWithRole(Roles::SUPERVISOR);
+        $shop = $this->makeShop();
+        $device = $this->makeDevice($shop);
+        $item = $this->makeItem();
+        $stock = $this->makeStock($shop, $item, 100);
+
+        $audit = Audit::create([
+            'shop_id' => $shop->id,
+            'device_id' => $device->id,
+            'audit_number' => 1,
+            'audit_date' => '2026-08-25',
+            'submitted_at' => now(),
+            'item_count' => 1,
+            'status' => Audit::STATUS_SUBMITTED,
+        ]);
+
+        $line = AuditLine::create([
+            'audit_id' => $audit->id,
+            'shop_id' => $shop->id,
+            'item_stock_id' => $stock->id,
+            'product_code' => $item->product_code,
+            'barcode' => $item->barcode,
+            'description' => $item->description,
+            'system_qty' => 100,
+            'physical_qty' => 100,
+            'variance_qty' => 0,
+            'batch' => 'B001',
+        ]);
+
+        $response = $this->actingAs($user)->postJson('/api/adjustments', ['audit_line_id' => $line->id]);
+
+        $response->assertCreated();
+        $this->assertEquals(100, $stock->fresh()->system_qty);
+        $this->assertEquals(0, StockAdjustment::firstOrFail()->variance_qty);
+        $this->assertEquals(0, $line->fresh()->variance_qty);
+    }
+
     public function test_recording_a_stock_take_does_not_create_an_item_master_record(): void
     {
         $user = $this->userWithRole(Roles::SUPERVISOR);

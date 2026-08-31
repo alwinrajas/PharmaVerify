@@ -10,7 +10,7 @@ import { DateFilter, FilterBar, SearchBar, SelectFilter } from '@/components/fil
 import { PageHeader } from '@/components/PageHeader'
 import { StatusBadge } from '@/components/StatusBadge'
 import { VarianceValue } from '@/components/VarianceValue'
-import { AdjustDialog } from '@/features/adjustments/AdjustDialog'
+import { AdjustDialog } from './AdjustDialog'
 import { useAuth } from '@/features/auth/AuthContext'
 import { useDeviceOptions, useShopOptions } from '@/hooks/useOptions'
 import { useTableQuery } from '@/hooks/useTableQuery'
@@ -26,7 +26,7 @@ import CompareArrowsRoundedIcon from '@mui/icons-material/CompareArrowsRounded'
 import PendingActionsRoundedIcon from '@mui/icons-material/PendingActionsRounded'
 import { KpiStrip } from '@/components/KpiStrip'
 
-export function VariancePage() {
+export function StockAdjustmentPage() {
   const { can } = useAuth()
   const { enqueueSnackbar } = useSnackbar()
   const table = useTableQuery({ sortBy: 'variance_qty', sortDir: 'asc', filters: { variance: 'non_zero' } })
@@ -180,9 +180,9 @@ export function VariancePage() {
   return (
     <Box>
       <PageHeader
-        title="Variance"
+        title="Stock Adjustment"
         description="Where the physical count and the system stock disagree, across every audit you can see."
-        crumbs={[{ label: 'Stock Verification' }, { label: 'Variance' }]}
+        crumbs={[{ label: 'Stock Verification' }, { label: 'Stock Adjustment' }]}
         actions={
           can(PERMISSIONS.reportsExport) ? (
             <>
@@ -252,7 +252,7 @@ export function VariancePage() {
 
       <DataTable
         focusable
-        focusTitle="Variance"
+        focusTitle="Stock Adjustment"
         density="compact"
         columnToggle
         freezeFirstColumn
