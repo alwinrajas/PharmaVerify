@@ -80,7 +80,9 @@ class StockReportReader
             return false;
         }
 
-        foreach ([self::SHEET_STOCK, self::SHEET_BATCHES, self::SHEET_ITEMS] as $required) {
+        // Stock and Item Master identify the report; the batches sheet is
+        // optional in newer exports and says nothing either way.
+        foreach ([self::SHEET_STOCK, self::SHEET_ITEMS] as $required) {
             if (! in_array(strtolower($required), $names, true)) {
                 return false;
             }
@@ -114,7 +116,12 @@ class StockReportReader
         $resolved = [];
         $missing = [];
 
-        foreach ([self::SHEET_STOCK, self::SHEET_BATCHES, self::SHEET_ITEMS] as $required) {
+        // "all batches" is no longer part of the export the business sends:
+        // newer files carry only "Stock" and "Item Master", with the GTIN in
+        // the item master doing the identifying that the batch sheet's
+        // ITEMBARCODE used to do. Older three-sheet files still arrive, so the
+        // sheet stays understood — it just stopped being demanded.
+        foreach ([self::SHEET_STOCK, self::SHEET_ITEMS] as $required) {
             $key = strtolower($required);
 
             if (! isset($actual[$key])) {
@@ -126,13 +133,19 @@ class StockReportReader
             $resolved[$required] = $actual[$key];
         }
 
+        $batchesKey = strtolower(self::SHEET_BATCHES);
+
+        if (isset($actual[$batchesKey])) {
+            $resolved[self::SHEET_BATCHES] = $actual[$batchesKey];
+        }
+
         if ($missing !== []) {
             throw new BusinessRuleException(sprintf(
-                'This does not look like a Stock Report. The workbook is missing the sheet(s): %s. A Stock Report contains "%s", "%s" and "%s".',
+                'This does not look like a Stock Report. The workbook is missing the sheet(s): %s. A Stock Report contains "%s" and "%s" (an "%s" sheet is used when present, but is not required).',
                 implode(', ', array_map(fn ($s) => '"'.$s.'"', $missing)),
                 self::SHEET_STOCK,
-                self::SHEET_BATCHES,
-                self::SHEET_ITEMS
+                self::SHEET_ITEMS,
+                self::SHEET_BATCHES
             ));
         }
 

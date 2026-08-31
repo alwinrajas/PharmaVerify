@@ -14,7 +14,7 @@ export default defineConfig({
     proxy: {
       // The API is served by Laravel during development.
       '/api': {
-        target: 'http://127.0.0.1:8000',
+        target: 'http://127.0.0.1:8001',
         changeOrigin: true,
       },
     },

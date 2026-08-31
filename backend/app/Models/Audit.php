@@ -23,6 +23,17 @@ class Audit extends Model
 {
     use ScopesToUserShops;
 
+    /**
+     * Counting is under way in the browser and the audit is incomplete.
+     *
+     * No status covered this before because every audit arrived from a handheld
+     * already finished. A count typed in over minutes can be interrupted — a
+     * phone call, a shift change — and the half-counted shelf has to survive
+     * that, so it needs a state of its own rather than being written as though
+     * it were done.
+     */
+    public const STATUS_IN_PROGRESS = 'in_progress';
+
     public const STATUS_SUBMITTED = 'submitted';
     public const STATUS_IN_VERIFICATION = 'in_verification';
     public const STATUS_VERIFIED = 'verified';
@@ -34,6 +45,16 @@ class Audit extends Model
 
     /** Read from a workbook exported by a handheld. */
     public const SOURCE_EXCEL = 'excel';
+
+    /**
+     * Counted in the browser, with no handheld involved.
+     *
+     * Kept distinct from the two device routes because the difference matters
+     * when a discrepancy is investigated: a system audit has a named user at a
+     * keyboard behind it and no device, and reading it as a handheld count
+     * would send someone looking for a terminal that was never there.
+     */
+    public const SOURCE_SYSTEM = 'system';
 
     protected $fillable = [
         'shop_id',

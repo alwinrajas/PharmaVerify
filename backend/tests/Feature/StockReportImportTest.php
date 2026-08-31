@@ -282,6 +282,69 @@ class StockReportImportTest extends TestCase
         $this->assertSame('08901234500011', Item::where('product_code', 'MRAQ-00003')->value('gtin'));
     }
 
+    /**
+     * The export the business now sends has no "all batches" sheet at all —
+     * just Stock and Item Master, with the GTIN in the item master doing all
+     * the identifying. That file must import as a Stock Report, not be turned
+     * away for missing a sheet the format no longer has.
+     */
+    public function test_a_two_sheet_report_without_the_batches_sheet_imports_on_the_gtin_alone(): void
+    {
+        $user = $this->userWithRole(Roles::ADMINISTRATOR);
+        $shop = $this->shopFor('PHM001', 'P001');
+
+        $file = $this->stockReport(
+            stock: [
+                ['P001', 'MRAQ-00003', 'B-1', 46023, 12, 12, 5.5],
+                ['P001', 'MRAQ-00087', 'B-2', 46024, 7, 7, 3.25],
+            ],
+            batches: null,
+            items: [
+                ['MRAQ-00003', 'Paracetamol 500mg Tablet', 'STRIP', 32.5, 10, '3664798000344'],
+                ['MRAQ-00087', 'Amoxicillin 250mg Capsule', 'STRIP', 88.0, 10, '8901234500028'],
+            ],
+        );
+
+        $response = $this->actingAs($user)->post('/api/stock-imports', ['file' => $file], ['Accept' => 'application/json']);
+
+        $response->assertCreated();
+        $this->assertSame('stock_report', $response->json('meta.format'));
+        $this->assertEquals(2, $response->json('meta.summary.imported'));
+
+        $line = ItemStock::where('shop_id', $shop->id)->where('product_code', 'MRAQ-00003')->firstOrFail();
+
+        // The GTIN is the scan identifier; with no batches sheet there is no
+        // legacy 7-digit barcode, and nothing is invented to fill its place.
+        $this->assertSame('3664798000344', $line->gtin);
+        $this->assertNull($line->barcode);
+        $this->assertEquals(12, $line->system_qty);
+        $this->assertSame('Paracetamol 500mg Tablet', $line->description);
+    }
+
+    /** Without an Item Master sheet there is no report, two sheets or three. */
+    public function test_a_two_sheet_workbook_still_needs_the_item_master(): void
+    {
+        $user = $this->userWithRole();
+        $shop = $this->shopFor('PHM001', 'P001');
+        $item = $this->makeItem();
+        $this->makeStock($shop, $item, 100, 'KEEP');
+
+        $spreadsheet = new Spreadsheet;
+        $this->fill($spreadsheet->getActiveSheet()->setTitle('stock'),
+            ['INVENTLOCATIONID', 'ITEMID', 'INVENTBATCHID', 'EXPDATE', 'LOWERQTY', 'TOTALCOST'],
+            [['P001', 'MRAQ-00003', 'B-1', 46023, 12, 66]]);
+        $this->fill($spreadsheet->createSheet()->setTitle('Notes'), ['REMARK'], [['x']]);
+
+        $response = $this->actingAs($user)->post('/api/stock-imports', [
+            'shop_id' => $shop->id,
+            'file' => $this->save($spreadsheet),
+        ], ['Accept' => 'application/json']);
+
+        $response->assertStatus(422);
+        $this->assertEquals(100, ItemStock::firstOrFail()->system_qty);
+        $this->assertSame(0, StockImport::count());
+    }
+
     /** Price is the retail selling price. COSTPRICE is never used in its place. */
     public function test_the_stock_price_comes_from_salesprice_not_costprice(): void
     {
@@ -685,7 +748,7 @@ class StockReportImportTest extends TestCase
      * @param  array<int, array<int, mixed>>  $batches
      * @param  array<int, array<int, mixed>>  $items
      */
-    private function stockReport(array $stock, array $batches, array $items): UploadedFile
+    private function stockReport(array $stock, ?array $batches, array $items): UploadedFile
     {
         $spreadsheet = new Spreadsheet;
 
@@ -705,11 +768,13 @@ class StockReportImportTest extends TestCase
             ], $stock)
         );
 
-        $this->fill(
-            $spreadsheet->createSheet()->setTitle('all batches'),
-            ['ITEMID', 'INVENTBATCHID', 'EXPDATE', 'ITEMBARCODE'],
-            $batches
-        );
+        if ($batches !== null) {
+            $this->fill(
+                $spreadsheet->createSheet()->setTitle('all batches'),
+                ['ITEMID', 'INVENTBATCHID', 'EXPDATE', 'ITEMBARCODE'],
+                $batches
+            );
+        }
 
         $this->fill(
             $spreadsheet->createSheet()->setTitle('Item Master'),

@@ -11,6 +11,22 @@ export function formatQuantity(value: number | string | null | undefined): strin
   return String(Number(amount.toFixed(3)))
 }
 
+/**
+ * Same as formatQuantity, but a positive value carries an explicit "+" —
+ * used for a delta such as a stock adjustment, where the sign is the point.
+ */
+export function formatSignedQuantity(value: number | string | null | undefined): string {
+  if (value === null || value === undefined || value === '') return '—'
+
+  const amount = Number(value)
+
+  if (Number.isNaN(amount)) return '—'
+
+  const formatted = formatQuantity(amount)
+
+  return amount > 0 ? `+${formatted}` : formatted
+}
+
 /** Money: always two decimals with thousands separators. */
 export function formatMoney(value: number | string | null | undefined): string {
   if (value === null || value === undefined || value === '') return '—'

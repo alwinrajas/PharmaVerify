@@ -68,7 +68,12 @@ class StockReportImportService
             ));
         }
 
-        $barcodes = $this->readBarcodes($path, $sheets[StockReportReader::SHEET_BATCHES], $needed['batches']);
+        // Newer exports have no batches sheet; every legacy 7-digit barcode is
+        // then simply absent and the GTIN from the item master carries the
+        // identification, which is the confirmed order of precedence anyway.
+        $barcodes = isset($sheets[StockReportReader::SHEET_BATCHES])
+            ? $this->readBarcodes($path, $sheets[StockReportReader::SHEET_BATCHES], $needed['batches'])
+            : [];
         $products = $this->readItemMaster($path, $sheets[StockReportReader::SHEET_ITEMS], $needed['items']);
 
         return $this->persist($file, $storedPath, $user, $rows, $errors, $barcodes, $products);

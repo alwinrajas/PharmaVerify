@@ -21,7 +21,14 @@ class StockAdjustmentService
 {
     public function __construct(private readonly VerificationService $verification) {}
 
-    public function adjustLine(AuditLine $line, User $user, ?string $reason = null): StockAdjustment
+    /**
+     * Decimal(18,3) columns round-trip through floats, so an exact equality
+     * check would flag rounding noise as drift. Anything smaller than this is
+     * not a movement, it is arithmetic.
+     */
+    private const DRIFT_TOLERANCE = 0.0005;
+
+    public function adjustLine(AuditLine $line, User $user, ?string $reason = null, bool $acknowledgeDrift = false): StockAdjustment
     {
         if ($line->adjustment_status === AuditLine::ADJUSTMENT_ADJUSTED) {
             throw new BusinessRuleException(sprintf(
@@ -37,7 +44,7 @@ class StockAdjustmentService
             );
         }
 
-        return DB::transaction(function () use ($line, $user, $reason) {
+        return DB::transaction(function () use ($line, $user, $reason, $acknowledgeDrift) {
             /** @var ItemStock|null $stock */
             $stock = ItemStock::lockForUpdate()->find($line->item_stock_id);
 
@@ -46,8 +53,37 @@ class StockAdjustmentService
             }
 
             $oldQty = (float) $stock->system_qty;
+            $auditedQty = (float) $line->system_qty;
             $physicalQty = (float) $line->physical_qty;
             $looseQty = (float) $line->loose_qty;
+
+            // The count is still the truth, but if system stock has moved since
+            // it was counted, someone else touched this stock in the meantime.
+            // Overwriting that figure without the operator ever seeing it is
+            // how a real movement quietly disappears, so it must be surfaced
+            // and explicitly acknowledged rather than silently applied over.
+            $drifted = abs($oldQty - $auditedQty) > self::DRIFT_TOLERANCE;
+
+            if ($drifted && ! $acknowledgeDrift) {
+                $countedPreview = AuditLine::countedTotal($physicalQty, $looseQty);
+
+                throw new BusinessRuleException(sprintf(
+                    'System stock for %s has changed since this audit was counted: the audit saw %s, stock now holds %s. Adjusting will replace %s with the counted %s. Confirm to proceed.',
+                    $line->product_code,
+                    self::trimmed($auditedQty),
+                    self::trimmed($oldQty),
+                    self::trimmed($oldQty),
+                    self::trimmed($countedPreview)
+                ));
+            }
+
+            $reason = $drifted
+                ? trim(($reason !== null && $reason !== '' ? $reason.' ' : '').sprintf(
+                    'Stock had changed from %s to %s before this adjustment.',
+                    self::trimmed($auditedQty),
+                    self::trimmed($oldQty)
+                ))
+                : $reason;
 
             // What the shelf actually holds: whole units plus loose. Posting
             // the physical figure alone would leave a residual variance equal
@@ -138,5 +174,13 @@ class StockAdjustmentService
         }
 
         return ['adjustments' => $adjustments, 'skipped' => $skipped];
+    }
+
+    /**
+     * A quantity for a user-facing sentence: 95.000 reads as 95, 95.500 as 95.5.
+     */
+    private static function trimmed(float $value): string
+    {
+        return rtrim(rtrim(number_format($value, 3, '.', ''), '0'), '.');
     }
 }

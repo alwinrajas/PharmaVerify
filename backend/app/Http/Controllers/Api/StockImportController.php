@@ -202,12 +202,12 @@ class StockImportController extends Controller
             // list is the confirmed mapping: a report missing one of these is
             // rejected before anything is written.
             'required' => [
-                'stock', 'all batches', 'Item Master',
+                'stock', 'Item Master',
                 'INVENTLOCATIONID', 'ITEMID', 'INVENTBATCHID', 'LOWERQTY', 'TOTALCOST',
-                'ITEMBARCODE', 'ITEMNAME', 'SALESPRICE', 'FACTOR', 'GLOBALTRADEITEMNUMBER',
+                'ITEMNAME', 'SALESPRICE', 'FACTOR', 'GLOBALTRADEITEMNUMBER',
             ],
-            'optional' => ['EXPDATE', 'HIGHERQTY', 'INVUNIT', 'COSTPERINVUNIT'],
-            'note' => 'The business Stock Report is expected: three sheets named "stock", "all batches" and "Item Master". '
+            'optional' => ['all batches', 'ITEMBARCODE', 'EXPDATE', 'HIGHERQTY', 'INVUNIT', 'COSTPERINVUNIT'],
+            'note' => 'The business Stock Report is expected: a "stock" sheet and an "Item Master" sheet. An "all batches" sheet with ITEMBARCODE is used when present, and newer exports without it are accepted. '
                 .'Importing replaces the stock of every shop the report covers. A shop is matched by its warehouse code '
                 .'(INVENTLOCATIONID). GLOBALTRADEITEMNUMBER is the GTIN the handheld scans, SALESPRICE is the retail '
                 .'selling price, and TOTALCOST is stored as the ERP supplies it. Where HIGHERQTY is absent, whole '

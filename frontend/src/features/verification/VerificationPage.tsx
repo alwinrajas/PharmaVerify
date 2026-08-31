@@ -10,7 +10,7 @@ import { FilterBar, SearchBar, SelectFilter } from '@/components/filters'
 import { PageHeader } from '@/components/PageHeader'
 import { StatusBadge } from '@/components/StatusBadge'
 import { VarianceValue } from '@/components/VarianceValue'
-import { AdjustDialog } from '@/features/adjustments/AdjustDialog'
+import { AdjustDialog } from '@/features/stock-adjustment/AdjustDialog'
 import { useAuth } from '@/features/auth/AuthContext'
 import { useDeviceOptions, useShopOptions } from '@/hooks/useOptions'
 import { useTableQuery } from '@/hooks/useTableQuery'
@@ -251,8 +251,8 @@ export function VerificationPage() {
       <AdjustDialog lines={adjustLines} open={adjustLines.length > 0} onClose={() => setAdjustLines([])} />
 
       <Stack direction="row" justifyContent="flex-end" sx={{ mt: 2 }}>
-        <Button size="small" onClick={() => navigate('/variance')}>
-          Go to variance →
+        <Button size="small" onClick={() => navigate('/stock-adjustment')}>
+          Go to Stock Adjustment →
         </Button>
       </Stack>
     </Box>

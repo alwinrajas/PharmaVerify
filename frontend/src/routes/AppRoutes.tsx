@@ -27,11 +27,13 @@ const ItemStockPage = lazy(async () => ({ default: (await import('@/features/sto
 const HhtSubmissionsPage = lazy(async () => ({ default: (await import('@/features/hht/HhtSubmissionsPage')).HhtSubmissionsPage }))
 const HhtSimulatorPage = lazy(async () => ({ default: (await import('@/features/hht/HhtSimulatorPage')).HhtSimulatorPage }))
 const HhtImportPage = lazy(async () => ({ default: (await import('@/features/hht/HhtImportPage')).HhtImportPage }))
-const AuditsPage = lazy(async () => ({ default: (await import('@/features/audits/AuditsPage')).AuditsPage }))
+const StockAuditWorkspacePage = lazy(async () => ({
+  default: (await import('@/features/audits/StockAuditWorkspacePage')).StockAuditWorkspacePage,
+}))
 const AuditDetailPage = lazy(async () => ({ default: (await import('@/features/audits/AuditDetailPage')).AuditDetailPage }))
 const VerificationPage = lazy(async () => ({ default: (await import('@/features/verification/VerificationPage')).VerificationPage }))
-const VariancePage = lazy(async () => ({ default: (await import('@/features/variance/VariancePage')).VariancePage }))
-const AdjustmentsPage = lazy(async () => ({ default: (await import('@/features/adjustments/AdjustmentsPage')).AdjustmentsPage }))
+const StockAdjustmentPage = lazy(async () => ({ default: (await import('@/features/stock-adjustment/StockAdjustmentPage')).StockAdjustmentPage }))
+const StockAdjustmentLogPage = lazy(async () => ({ default: (await import('@/features/stock-adjustment/StockAdjustmentLogPage')).StockAdjustmentLogPage }))
 const StockTakePage = lazy(async () => ({ default: (await import('@/features/stock-take/StockTakePage')).StockTakePage }))
 const ReportsPage = lazy(async () => ({ default: (await import('@/features/reports/ReportsPage')).ReportsPage }))
 const FinalOutputPage = lazy(async () => ({ default: (await import('@/features/final-output/FinalOutputPage')).FinalOutputPage }))
@@ -146,13 +148,18 @@ export function AppRoutes() {
         <Route path="hht/simulator" element={<Screen permission="hht.view"><HhtSimulatorPage /></Screen>} />
         <Route path="hht/import" element={<Screen permission="hht.import"><HhtImportPage /></Screen>} />
 
-        <Route path="audits" element={<Screen permission="audits.view"><AuditsPage /></Screen>} />
+        <Route path="audits" element={<Screen permission="audits.view"><StockAuditWorkspacePage /></Screen>} />
         <Route path="audits/:auditId" element={<Screen permission="audits.view"><AuditDetailPage /></Screen>} />
 
+        {/* Still reachable from the audit detail flow; removed from the menu, not deleted. */}
         <Route path="verification" element={<Screen permission="audits.view"><VerificationPage /></Screen>} />
-        <Route path="variance" element={<Screen permission="variance.view"><VariancePage /></Screen>} />
-        <Route path="adjustments" element={<Screen permission="adjustments.view"><AdjustmentsPage /></Screen>} />
+        <Route path="stock-adjustment" element={<Screen permission="variance.view"><StockAdjustmentPage /></Screen>} />
+        <Route path="stock-adjustment-log" element={<Screen permission="adjustments.view"><StockAdjustmentLogPage /></Screen>} />
         <Route path="stock-take" element={<Screen permission="stocktake.view"><StockTakePage /></Screen>} />
+
+        {/* Bookmarks to the old paths must not break when the screens were renamed. */}
+        <Route path="variance" element={<Navigate to="/stock-adjustment" replace />} />
+        <Route path="adjustments" element={<Navigate to="/stock-adjustment-log" replace />} />
 
         <Route path="reports" element={<Screen permission="reports.view"><ReportsPage /></Screen>} />
         <Route path="reports/:reportKey" element={<Screen permission="reports.view"><ReportsPage /></Screen>} />

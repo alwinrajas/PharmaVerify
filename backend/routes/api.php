@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\ActivityLogController;
 use App\Http\Controllers\Api\AuditController;
+use App\Http\Controllers\Api\WebAuditController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\DeviceController;
@@ -104,6 +105,15 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('hht/submissions/{hhtSubmission}', [HhtSubmissionController::class, 'show']);
 
     // -------------------------------------------------------- Stock audit
+    // Counting from the browser. Registered before the {audit} routes below
+    // so 'audits/start' is matched as a literal path and never mistaken for an
+    // audit whose id happens to read 'start'.
+    Route::post('audits/start', [WebAuditController::class, 'start']);
+    Route::get('audits/lookup', [WebAuditController::class, 'lookup']);
+    Route::post('audits/{audit}/count', [WebAuditController::class, 'count']);
+    Route::delete('audits/{audit}/count/{line}', [WebAuditController::class, 'removeCount']);
+    Route::post('audits/{audit}/complete', [WebAuditController::class, 'complete']);
+
     Route::get('audits', [AuditController::class, 'index']);
     Route::get('audits/{audit}', [AuditController::class, 'show']);
     Route::get('audits/{audit}/lines', [AuditController::class, 'lines']);
